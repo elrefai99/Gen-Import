@@ -28,6 +28,7 @@ function parseArgs(argv: string[]): CliArgs {
             case '-s':
                 importOpts.srcDir = next
                 packageOpts.srcDir = next
+                appConfigOpts.srcDir = next
                 i++
                 break
             case '--out':
@@ -111,10 +112,10 @@ gen-import — generate barrel files for your Node/TypeScript project
 Usage:
   npx gen-import [options]
 
-Source barrel (gen-import.d.ts + gen-import.js):
+Source barrel (gen-import.ts for TS projects, gen-import.js for JS projects):
   -r, --root <dir>            Project root (default: cwd)
   -s, --src <dir>             Source directory relative to root (default: src)
-  -o, --out <filename>        Output filename inside src (default: gen-import.d.ts)
+  -o, --out <filename>        Output filename inside src (default: auto-detected)
   -m, --module-pattern <pat>  Module file pattern deferred to end (default: .module.ts)
   --skip <pattern>            Skip files matching pattern (repeatable)
   --pure-reexport <path>      Mark a file as pure re-export to skip (repeatable)
@@ -141,14 +142,15 @@ Config file:
   Example:
     module.exports = {
       srcDir: 'src',
-      outFileName: 'gen-import.d.ts',
+      outFileName: 'gen-import.ts',  // or gen-import.js for JS projects
       skipPatterns: ['src/types/', 'src/app.ts'],
       pureReexports: ['src/config/index.ts'],
     }
 
 Output files:
-  gen-import.d.ts      TypeScript declaration barrel for your source files
-  gen-import.js        JavaScript runtime barrel (CJS or ESM, auto-detected)
+  gen-import.ts        TypeScript source barrel (TS projects — importable by tsx/ts-node)
+  gen-import.js        JavaScript runtime barrel (JS projects, or TS with --no-js disabled)
+  gen-import.d.ts      Type companion written alongside gen-import.js (JS projects only)
   gen-package.d.ts     TypeScript declaration barrel for npm packages
   gen-package.js       JavaScript runtime barrel for npm packages
   gen-app-config.d.ts  Server config — re-exports both barrels, no per-file imports

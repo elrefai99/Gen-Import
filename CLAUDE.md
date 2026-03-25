@@ -15,29 +15,59 @@ npx ts-node src/cli.ts [options]
 node dist/cli.js
 ```
 
-There are no test scripts configured. The `prepublishOnly` hook runs `build` automatically before publishing.
+No test scripts are configured. `prepublishOnly` runs `build` automatically before publishing. Always run `pnpm build` before publishing — `dist/` is in `.gitignore` but published to npm via `.npmignore`.
+
+## Source layout
+
+```
+src/
+  @types/index.d.ts   — all shared interfaces (GenImportOptions, GenPackageOptions,
+                         GenAppConfigOptions, FileInfo, CliArgs)
+  index.ts            — programmatic core; exports genImport, genPackage, genAppConfig
+  cli.ts              — thin CLI wrapper; parses argv, loads config file, calls core fns
+```
 
 ## Architecture
 
-This is a two-file TypeScript CLI package published to npm as `gen-import`.
+**`src/@types/index.d.ts`** — single source of truth for all public and internal interfaces. Both `index.ts` and `cli.ts` import from here.
 
-**`src/index.ts`** — the programmatic core, exports `genImport(options)`:
-1. Walks `srcDir` recursively collecting `.ts` files
-2. Filters out test files, the output file itself, `skipPatterns`, and `pureReexports`
-3. Splits files into regular vs. module files (matching `moduleFilePattern`), then processes regular files first to avoid circular-dependency issues with NestJS-style `*.module.ts` files
-4. Uses the TypeScript compiler API (`ts.createProgram` + `ts.TypeChecker`) to extract exported symbols per file, classifying each as type-only (`Interface | TypeAlias` without `Value` flag) or value
-5. Deduplicates symbol names across files using a `Set<string>` and writes a barrel file with `export type { ... }` and `export { ... }` statements
-6. Diffs against the previously written barrel file to report newly added exports
+**`src/index.ts`** — three exported functions sharing a set of internal helpers:
 
-**`src/cli.ts`** — thin CLI wrapper:
+| Helper | Purpose |
+|---|---|
+| `walk(dir)` | Recursive `readdirSync` file collector |
+| `detectModuleType(rootDir)` | Reads `package.json` `"type"` field → `'esm' \| 'cjs'` |
+| `detectProjectLanguage(rootDir, srcDir)` | Returns `'ts'` if `tsconfig.json` exists or any `.ts` file is found in `srcDir`, otherwise `'js'`. **TS projects default `generateJs` to `false`** (the TS compiler produces `.js`; pre-generated barrel `.js` files are not needed). |
+| `toJsPath(filePath)` | Converts `.d.ts` / `.ts` path to `.js` |
+| `analyzeFiles(files, rootDir, srcDir)` | Creates a `ts.Program`, uses `TypeChecker.getExportsOfModule` to classify each export as type-only (`Interface \| TypeAlias` without `Value` flag) or value, returns `FileInfo[]` |
+| `buildDtsOutput` / `buildJsOutput` | Render the barrel file content for source barrels |
+| `buildPackageDts` / `buildPackageJs` | Render the barrel file content for package barrels |
+| `readPreviousExports(outFile)` | Parses existing barrel for `export { ... }` names — used to diff and report new exports |
+| `parseBarrelExports(filePath)` | Like `readPreviousExports` but also handles `export * from` (recorded as sentinel `'*'`); used by `genAppConfig` for auto-update logic |
+
+**`genImport(options)`**
+1. Collects `.ts` files from `srcDir`, filters by `skipPatterns` / `pureReexports` / `.d.ts`
+2. Splits into regular files and module files (matching `moduleFilePattern`, default `.module.ts`) — module files are appended last to avoid circular-require issues with NestJS-style `*.module.ts`
+3. Calls `analyzeFiles`, deduplicates with a `Set<string>`, writes `gen-import.d.ts` (+ `.js` for JS projects)
+4. Diffs against previous barrel content and logs newly added exports
+
+**`genPackage(options)`**
+Reads `dependencies` (+ optionally `devDependencies`) from `package.json`, applies include/exclude filters, writes a `gen-package.d.ts` with `export * from '<pkg>'` lines (+ `.js` for JS projects).
+
+**`genAppConfig(options)`**
+1. **Auto-update** (when `autoUpdate: true`, default): scans source files, compares against names already in `gen-import.d.ts` via `parseBarrelExports`, appends only new exports, regenerates `gen-import.js` if it exists
+2. Writes `gen-app-config.d.ts` containing only two lines — `export * from './gen-import'` and `export * from './gen-package'` — **no per-file imports**
+3. Writes `.js` companion pointing at the two barrel `.js` files only
+
+**`src/cli.ts`**
 - Parses `process.argv` manually (no third-party arg parser)
 - Loads `gen-import.config.js` from the project root via `require()`
-- CLI flags override config file values; both are merged before calling `genImport()`
-
-**Output** (`dist/`) is committed to npm but not to git (`.npmignore` publishes `dist/`; `.gitignore` excludes it). Always run `pnpm build` before publishing.
+- CLI flags override config file values; all three option sets are merged before calling the core functions
 
 ## Key design decisions
 
-- **No runtime dependencies** beyond `typescript` itself — the TypeScript compiler API is used directly for AST analysis.
-- Default output filename in `genImport()` is `'gen-import.ts'` but the CLI help and README show `'the-import.ts'` — these differ intentionally; the config file or `--out` flag controls which name is used.
-- `pureReexports` files are skipped entirely from analysis (they already re-export via another barrel); their path must be relative to `rootDir`.
+- **No runtime dependencies** — only `typescript` (used directly for AST analysis via `ts.createProgram` + `ts.TypeChecker`).
+- **`generateJs` auto-detection** — defaults to `false` for TS projects (detected via `tsconfig.json` or `.ts` files in `srcDir`), `true` for JS projects. Can always be overridden explicitly.
+- **`pureReexports`** paths must be relative to `rootDir` (not `srcDir`).
+- **Module file deferral** — NestJS `*.module.ts` files reference services/repos that aren't yet exported when the barrel is first processed; deferring them prevents circular-require errors at runtime.
+- **`genAppConfig` as a zero-import aggregator** — downstream server code imports only from `gen-app-config`, which re-exports from the two barrels. No file in the project ever needs to import from individual source paths.

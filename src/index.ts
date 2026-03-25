@@ -26,6 +26,24 @@ function detectModuleType(rootDir: string): 'esm' | 'cjs' {
     return 'cjs'
 }
 
+/**
+ * Detect whether the project is TypeScript or JavaScript.
+ * A project is considered TypeScript if `tsconfig.json` exists at the root
+ * OR any `.ts` / `.tsx` file is present inside `srcDir`.
+ * When the project is TypeScript the `.js` companion files are not needed
+ * (the TS compiler produces them); only `.d.ts` barrels are written.
+ */
+function detectProjectLanguage(rootDir: string, srcDir: string): 'ts' | 'js' {
+    if (existsSync(join(rootDir, 'tsconfig.json'))) return 'ts'
+    try {
+        const hasTsFile = walk(srcDir).some((f) => f.endsWith('.ts') || f.endsWith('.tsx'))
+        if (hasTsFile) return 'ts'
+    } catch {
+        // srcDir may not exist yet
+    }
+    return 'js'
+}
+
 /** Derive the .js output path from a .d.ts / .ts path */
 function toJsPath(filePath: string): string {
     return filePath.replace(/\.d\.ts$/, '.js').replace(/(?<!\.d)\.ts$/, '.js')
@@ -82,11 +100,10 @@ function analyzeFiles(files: string[], rootDir: string, srcDir: string): FileInf
 
 function buildDtsOutput(infos: FileInfo[], outFileName: string): string {
     const seen = new Set<string>()
-    const baseName = outFileName.replace(/\.d\.ts$/, '').replace(/\.ts$/, '')
 
     const lines: string[] = [
         '/**',
-        ` * ${baseName}.d.ts — AUTO-GENERATED, do not edit manually.`,
+        ` * ${outFileName} — AUTO-GENERATED, do not edit manually.`,
         ' * Regenerate: npx gen-import',
         ' */',
         '',
@@ -260,19 +277,30 @@ function parseBarrelExports(filePath: string): Set<string> {
 export function genImport(options: GenImportOptions = {}): void {
     const rootDir = resolve(options.rootDir ?? process.cwd())
     const srcDir = resolve(rootDir, options.srcDir ?? 'src')
-    const outFileName = options.outFileName ?? 'gen-import.d.ts'
+    const isTs = detectProjectLanguage(rootDir, srcDir) === 'ts'
+    const moduleType = detectModuleType(rootDir)
+
+    // TS projects: generate a real .ts source file (importable by tsx / ts-node / tsc).
+    // JS projects: generate a .js runtime file (Node can import it directly).
+    // .d.ts is never a valid import target — it is declaration-only.
+    const outFileName = options.outFileName ?? (isTs ? 'gen-import.ts' : 'gen-import.js')
     const outFile = join(srcDir, outFileName)
-    const generateJs = options.generateJs ?? true
+
+    // For JS projects we also write a companion .d.ts so editors get type info.
+    const writeTypeDecl = !isTs && !outFileName.endsWith('.d.ts')
+
+    const generateJs = options.generateJs ?? false  // only used when outFile is .ts
     const moduleFilePattern = options.moduleFilePattern ?? DEFAULT_MODULE_FILE_PATTERN
     const pureReexports = new Set(options.pureReexports ?? [])
     const skipPatterns = [...DEFAULT_SKIP_PATTERNS, ...(options.skipPatterns ?? [])]
-    const moduleType = detectModuleType(rootDir)
+
+    // Files to skip when scanning srcDir
+    const extraSkip = new Set([outFile, toJsPath(outFile)])
 
     function shouldSkip(file: string): boolean {
-        // skip declaration files and non-TS files
-        if (file.endsWith('.d.ts')) return true
-        if (!file.endsWith('.ts')) return true
-        if (file === outFile) return true
+        if (file.endsWith('.d.ts')) return true        // never analyse declaration files
+        if (!file.endsWith('.ts') && !file.endsWith('.js')) return true
+        if (extraSkip.has(file)) return true
         const rel = relative(rootDir, file).replace(/\\/g, '/')
         if (pureReexports.has(rel)) return true
         return skipPatterns.some((p) => rel.includes(p))
@@ -289,13 +317,27 @@ export function genImport(options: GenImportOptions = {}): void {
 
     const prevExports = readPreviousExports(outFile)
 
-    // Write .d.ts
-    writeFileSync(outFile, buildDtsOutput(infos, outFileName), 'utf-8')
+    // Main output:
+    //   TS projects → .ts file with full TypeScript export syntax (export type { ... })
+    //   JS projects → .js file with runtime-only exports (no `export type`)
+    if (isTs) {
+        writeFileSync(outFile, buildDtsOutput(infos, outFileName), 'utf-8')
+    } else {
+        writeFileSync(outFile, buildJsOutput(infos, outFileName, moduleType), 'utf-8')
+    }
 
-    // Write .js companion
-    if (generateJs) {
+    // JS projects: write a .d.ts type-declaration companion so TypeScript IDEs get types
+    if (writeTypeDecl) {
+        const dtsFile = outFile.replace(/\.js$/, '.d.ts')
+        writeFileSync(dtsFile, buildDtsOutput(infos, outFileName.replace(/\.js$/, '.d.ts')), 'utf-8')
+        console.log(`✓  ${relative(rootDir, dtsFile)}`)
+    }
+
+    // TS projects with explicit generateJs: also write a .js runtime companion
+    if (isTs && generateJs) {
         const jsFile = toJsPath(outFile)
         writeFileSync(jsFile, buildJsOutput(infos, outFileName, moduleType), 'utf-8')
+        console.log(`✓  ${relative(rootDir, jsFile)}`)
     }
 
     const total = infos.reduce(
@@ -308,8 +350,7 @@ export function genImport(options: GenImportOptions = {}): void {
         .filter((name) => !prevExports.has(name))
 
     console.log(`✓  ${relative(rootDir, outFile)}`)
-    if (generateJs) console.log(`✓  ${relative(rootDir, toJsPath(outFile))}`)
-    console.log(`   ${infos.length} source files · ${total} exports · module: ${moduleType}`)
+    console.log(`   ${infos.length} source files · ${total} exports · ${isTs ? 'typescript' : 'javascript'} · module: ${moduleType}`)
     if (newExports.length) {
         console.log(`   +${newExports.length} new: ${newExports.join(', ')}`)
     }
@@ -320,6 +361,8 @@ export function genPackage(options: GenPackageOptions = {}): void {
     const srcDir = resolve(rootDir, options.srcDir ?? 'src')
     const outFileName = options.outFileName ?? 'gen-package.d.ts'
     const outFile = join(srcDir, outFileName)
+    // gen-package always needs a .js runtime companion — packages live in node_modules
+    // and must be require()-able at runtime regardless of project language.
     const generateJs = options.generateJs ?? true
     const moduleType = detectModuleType(rootDir)
 
@@ -364,12 +407,14 @@ export function genAppConfig(options: GenAppConfigOptions = {}): void {
     const srcDir = resolve(rootDir, options.srcDir ?? 'src')
     const outFileName = options.outFileName ?? 'gen-app-config.d.ts'
     const outFile = join(srcDir, outFileName)
-    const genImportFileName = options.genImportFile ?? 'gen-import.d.ts'
+    const isTs = detectProjectLanguage(rootDir, srcDir) === 'ts'
+    // Mirror the same default that genImport() uses so auto-update finds the right file
+    const genImportFileName = options.genImportFile ?? (isTs ? 'gen-import.ts' : 'gen-import.js')
     const genPackageFileName = options.genPackageFile ?? 'gen-package.d.ts'
     const genImportPath = join(srcDir, genImportFileName)
     const genPackagePath = join(srcDir, genPackageFileName)
     const autoUpdate = options.autoUpdate ?? true
-    const generateJs = options.generateJs ?? true
+    const generateJs = options.generateJs ?? !isTs
     const moduleType = detectModuleType(rootDir)
     const moduleFilePattern = options.moduleFilePattern ?? DEFAULT_MODULE_FILE_PATTERN
     const pureReexports = new Set(options.pureReexports ?? [])

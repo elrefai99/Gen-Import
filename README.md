@@ -105,7 +105,7 @@ App-server config  (gen-app-config.d.ts + gen-app-config.js):
   --no-auto-update            Skip auto-appending new source exports to gen-import.d.ts
 
 Shared:
-  --no-js                     Skip generating .js companion files
+  --no-js                     Skip generating .js companion files (auto-skipped for TS projects)
   -h, --help                  Show this help
 ```
 
@@ -186,7 +186,7 @@ genImport({
 | `skipPatterns` | `string[]` | `[]` | Extra path substrings to skip (merged with built-ins) |
 | `pureReexports` | `string[]` | `[]` | Files already re-exported elsewhere (relative to `rootDir`) |
 | `moduleFilePattern` | `string` | `'.module.ts'` | Pattern for files deferred to end of barrel |
-| `generateJs` | `boolean` | `true` | Also emit a `.js` companion file |
+| `generateJs` | `boolean` | `false` for TS projects, `true` for JS | Also emit a `.js` companion file |
 
 Built-in skip patterns (always active): `__tests__`, `.test.`, `.spec.`
 
@@ -215,7 +215,7 @@ genPackage({
 | `includePackages` | `string[]` | _(all deps)_ | Whitelist specific packages |
 | `excludePackages` | `string[]` | `[]` | Always exclude these packages |
 | `includeDev` | `boolean` | `false` | Also include `devDependencies` |
-| `generateJs` | `boolean` | `true` | Also emit a `.js` companion file |
+| `generateJs` | `boolean` | `false` for TS projects, `true` for JS | Also emit a `.js` companion file |
 
 ---
 
@@ -245,7 +245,7 @@ genAppConfig({
 | `skipPatterns` | `string[]` | `[]` | Pass-through for source scanning during auto-update |
 | `pureReexports` | `string[]` | `[]` | Pass-through for source scanning during auto-update |
 | `moduleFilePattern` | `string` | `'.module.ts'` | Pass-through for source scanning during auto-update |
-| `generateJs` | `boolean` | `true` | Also emit a `.js` companion file |
+| `generateJs` | `boolean` | `false` for TS projects, `true` for JS | Also emit a `.js` companion file |
 
 ---
 
