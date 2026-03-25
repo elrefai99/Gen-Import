@@ -1,0 +1,45 @@
+{
+  "name": "gen-import",
+  "version": "0.2.0",
+  "description": "Generate a TypeScript barrel file for your Express/Node project using the TypeScript compiler API",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "gen-import": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "typescript",
+    "barrel",
+    "imports",
+    "express",
+    "codegen",
+    "generator"
+  ],
+  "author": "@elrefai99",
+  "license": "MIT",
+  "dependencies": {
+    "typescript": "^6.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "ts-node": "^10.9.2"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0G0sha/gen-import.git"
+  },
+  "bugs": {
+    "url": "https://github.com/0G0sha/gen-import/issues"
+  },
+  "homepage": "https://github.com/0G0sha/gen-import#readme"
+}
