@@ -36,7 +36,7 @@ src/
                          toJsPath, analyzeFiles, buildDtsOutput, buildJsOutput,
                          buildPackageDts, buildPackageJs, readPreviousExports, parseBarrelExports)
   gen-import.ts       — auto-generated barrel (dogfoods the tool); do not edit
-  gen-app-config.d.ts — auto-generated aggregator barrel; do not edit
+  gen-app-config.ts   — auto-generated aggregator barrel; do not edit
   gen-package.d.ts    — auto-generated package barrel; do not edit
 ```
 
@@ -73,8 +73,10 @@ Reads `dependencies` (+ optionally `devDependencies`) from `package.json`, appli
 
 **`genAppConfig(options)`** — `src/core/app-config.ts`
 1. **Auto-update** (when `autoUpdate: true`, default): scans source files (skipping `genPackagePath` and `genImportPath` to prevent circularity), compares against names already in `gen-import.ts`, appends only new exports
-2. Writes `gen-app-config.d.ts` with two lines — `export * from './gen-import'` and `export * from './gen-package'`
-3. Writes `.js` companion (for JS projects) pointing at the two barrel `.js` files only
+2. Mirrors `genImport`/`genPackage` language detection for output file:
+   - **TS projects** → `gen-app-config.ts` (importable by ts-node / tsx / tsc); `generateJs` defaults to `false`
+   - **JS projects** → `gen-app-config.js` runtime file + `gen-app-config.d.ts` type companion
+3. Content is always two lines — `export * from './gen-import'` and `export * from './gen-package'`
 
 **`src/cli.ts`**
 - Parses `process.argv` manually (no third-party arg parser)

@@ -7,10 +7,9 @@ import { GenAppConfigOptions } from '../@types'
 export function genAppConfig(options: GenAppConfigOptions = {}): void {
      const rootDir = resolve(options.rootDir ?? process.cwd())
      const srcDir = resolve(rootDir, options.srcDir ?? 'src')
-     const outFileName = options.outFileName ?? 'gen-app-config.d.ts'
-     const outFile = join(srcDir, outFileName)
      const isTs = detectProjectLanguage(rootDir, srcDir) === 'ts'
-     // Mirror the same default that genImport() uses so auto-update finds the right file
+     const outFileName = options.outFileName ?? (isTs ? 'gen-app-config.ts' : 'gen-app-config.js')
+     const outFile = join(srcDir, outFileName)
      const genImportFileName = options.genImportFile ?? (isTs ? 'gen-import.ts' : 'gen-import.js')
      const genPackageFileName = options.genPackageFile ?? (isTs ? 'gen-package.ts' : 'gen-package.js')
      const genImportPath = join(srcDir, genImportFileName)
@@ -94,28 +93,32 @@ export function genAppConfig(options: GenAppConfigOptions = {}): void {
 
      const hasGenImport = existsSync(genImportPath)
      const hasGenPackage = existsSync(genPackagePath)
-     const genImportBase = genImportFileName.replace(/\.d\.ts$/, '').replace(/\.ts$/, '')
-     const genPackageBase = genPackageFileName.replace(/\.d\.ts$/, '').replace(/\.ts$/, '')
-     const configBase = outFileName.replace(/\.d\.ts$/, '').replace(/\.ts$/, '')
+     const genImportBase = genImportFileName.replace(/\.d\.ts$/, '').replace(/\.ts$/, '').replace(/\.js$/, '')
+     const genPackageBase = genPackageFileName.replace(/\.d\.ts$/, '').replace(/\.ts$/, '').replace(/\.js$/, '')
+     const configBase = outFileName.replace(/\.d\.ts$/, '').replace(/\.ts$/, '').replace(/\.js$/, '')
 
-     const dtsLines: string[] = [
-          '/**',
-          ` * ${configBase}.d.ts — AUTO-GENERATED, do not edit manually.`,
-          ' * Regenerate: npx gen-import --app-config',
-          ' * Imports only from barrel files — no per-file imports.',
-          ' */',
-          '',
-     ]
-     if (hasGenImport) dtsLines.push(`export * from './${genImportBase}';`)
-     if (hasGenPackage) dtsLines.push(`export * from './${genPackageBase}';`)
-     dtsLines.push('')
+     // For JS projects: also write a .d.ts companion so editors get types
+     const writeTypeDecl = !isTs && !outFileName.endsWith('.d.ts')
 
-     writeFileSync(outFile, dtsLines.join('\n'), 'utf-8')
-     console.log(`✓  ${relative(rootDir, outFile)}`)
+     // Source-compatible content — valid in both .ts and .d.ts
+     const buildBarrel = (label: string): string => {
+          const lines: string[] = [
+               '/**',
+               ` * ${label} — AUTO-GENERATED, do not edit manually.`,
+               ' * Regenerate: npx gen-import --app-config',
+               ' * Imports only from barrel files — no per-file imports.',
+               ' */',
+               '',
+          ]
+          if (hasGenImport) lines.push(`export * from './${genImportBase}';`)
+          if (hasGenPackage) lines.push(`export * from './${genPackageBase}';`)
+          lines.push('')
+          return lines.join('\n')
+     }
 
-     if (generateJs) {
-          const jsFile = toJsPath(outFile)
-          const jsLines: string[] = [
+     // Runtime JS content (used for JS projects or explicit generateJs on TS projects)
+     const buildJsBarrel = (): string => {
+          const lines: string[] = [
                '/**',
                ` * ${configBase}.js — AUTO-GENERATED, do not edit manually.`,
                ' * Regenerate: npx gen-import --app-config',
@@ -123,32 +126,53 @@ export function genAppConfig(options: GenAppConfigOptions = {}): void {
                ' */',
                '',
           ]
-
           if (moduleType === 'esm') {
-               if (hasGenImport) jsLines.push(`export * from './${genImportBase}.js';`)
-               if (hasGenPackage) jsLines.push(`export * from './${genPackageBase}.js';`)
+               if (hasGenImport) lines.push(`export * from './${genImportBase}.js';`)
+               if (hasGenPackage) lines.push(`export * from './${genPackageBase}.js';`)
           } else {
-               jsLines.push('"use strict";')
-               jsLines.push('Object.defineProperty(exports, "__esModule", { value: true });')
-               jsLines.push('')
+               lines.push('"use strict";')
+               lines.push('Object.defineProperty(exports, "__esModule", { value: true });')
+               lines.push('')
                if (hasGenImport) {
-                    jsLines.push(`const _gi = require('./${genImportBase}.js');`)
-                    jsLines.push(
+                    lines.push(`const _gi = require('./${genImportBase}.js');`)
+                    lines.push(
                          `if (_gi && typeof _gi === 'object') ` +
                          `Object.keys(_gi).forEach(function(k) { if (k !== 'default') exports[k] = _gi[k]; });`,
                     )
                }
                if (hasGenPackage) {
-                    jsLines.push(`const _gp = require('./${genPackageBase}.js');`)
-                    jsLines.push(
+                    lines.push(`const _gp = require('./${genPackageBase}.js');`)
+                    lines.push(
                          `if (_gp && typeof _gp === 'object') ` +
                          `Object.keys(_gp).forEach(function(k) { if (k !== 'default') exports[k] = _gp[k]; });`,
                     )
                }
           }
-          jsLines.push('')
+          lines.push('')
+          return lines.join('\n')
+     }
 
-          writeFileSync(jsFile, jsLines.join('\n'), 'utf-8')
+     // Main output:
+     //   TS projects → .ts source file (importable by ts-node / tsx / tsc)
+     //   JS projects → .js runtime file
+     if (isTs) {
+          writeFileSync(outFile, buildBarrel(`${configBase}.ts`), 'utf-8')
+     } else {
+          writeFileSync(outFile, buildJsBarrel(), 'utf-8')
+     }
+     console.log(`✓  ${relative(rootDir, outFile)}`)
+
+     // JS projects: write a .d.ts type companion so TypeScript IDEs get types
+     if (writeTypeDecl) {
+          const dtsFile = outFile.replace(/\.js$/, '.d.ts')
+          writeFileSync(dtsFile, buildBarrel(`${configBase}.d.ts`), 'utf-8')
+          console.log(`✓  ${relative(rootDir, dtsFile)}`)
+     }
+
+     // TS projects with explicit generateJs: also write a .js runtime companion
+     if (isTs && generateJs) {
+          const jsFile = toJsPath(outFile)
+          writeFileSync(jsFile, buildJsBarrel(), 'utf-8')
           console.log(`✓  ${relative(rootDir, jsFile)}`)
      }
 
