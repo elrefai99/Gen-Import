@@ -1,0 +1,25 @@
+{
+  "name": "express-app-example",
+  "version": "1.0.0",
+  "description": "Full Express + TypeScript example showing gen-import barrel files",
+  "main": "dist/app.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/app.js",
+    "dev": "ts-node src/app.ts",
+    "gen": "node ../../dist/cli.js --packages --app-config --exclude-pkg express",
+    "gen:source": "node ../../dist/cli.js",
+    "gen:packages": "node ../../dist/cli.js --packages-only --exclude-pkg express",
+    "gen:all": "node ../../dist/cli.js --packages --app-config --exclude-pkg express"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.0",
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.0"
+  }
+}

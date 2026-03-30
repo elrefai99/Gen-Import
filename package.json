@@ -1,6 +1,6 @@
 {
   "name": "gen-import",
-  "version": "0.4.0",
+  "version": "0.5.2",
   "description": "Generate a TypeScript barrel file for your Express/Node project using the TypeScript compiler API",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -36,10 +36,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/0G0sha/gen-import.git"
+    "url": "git+https://github.com/elrefai99/Gen-Import.git"
   },
   "bugs": {
-    "url": "https://github.com/0G0sha/gen-import/issues"
+    "url": "https://github.com/elrefai99/Gen-Import/issues"
   },
-  "homepage": "https://github.com/0G0sha/gen-import#readme"
+  "homepage": "https://github.com/elrefai99/Gen-Import#readme"
 }
