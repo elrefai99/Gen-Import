@@ -25,7 +25,12 @@ src/
                          GenAppConfigOptions, FileInfo, CliArgs)
   index.ts            — programmatic core; exports genImport, genPackage, genAppConfig
   cli.ts              — thin CLI wrapper; parses argv, loads config file, calls core fns
+  gen-import.ts       — auto-generated barrel (the tool dogfoods itself); do not edit
+  gen-app-config.d.ts — auto-generated aggregator barrel; do not edit
+  gen-package.d.ts    — auto-generated package barrel; do not edit
 ```
+
+`.gitignore` excludes `*.js` from `src/`, so no compiled JS lives there in git. The tool compiles to `dist/` (CommonJS, ES2020 target) via `tsc`.
 
 ## Architecture
 
@@ -52,7 +57,9 @@ src/
 4. Diffs against previous barrel content and logs newly added exports
 
 **`genPackage(options)`**
-Reads `dependencies` (+ optionally `devDependencies`) from `package.json`, applies include/exclude filters, writes a `gen-package.d.ts` with `export * from '<pkg>'` lines (+ `.js` for JS projects).
+Reads `dependencies` (+ optionally `devDependencies`) from `package.json`, applies include/exclude filters. Mirrors `genImport` language detection:
+- **TS projects** → `gen-package.ts` with `export * from '<pkg>'` lines; `generateJs` defaults to `false` (tsc produces the `.js`)
+- **JS projects** → `gen-package.js` runtime file + `gen-package.d.ts` type companion
 
 **`genAppConfig(options)`**
 1. **Auto-update** (when `autoUpdate: true`, default): scans source files, compares against names already in `gen-import.d.ts` via `parseBarrelExports`, appends only new exports, regenerates `gen-import.js` if it exists

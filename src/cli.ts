@@ -172,12 +172,22 @@ if (runPackages) {
 }
 
 if (runAppConfig) {
+    // Merge config-file skipPatterns + pureReexports so auto-update respects the same
+    // exclusions as genImport (e.g. entry points declared in gen-import.config.js).
+    const mergedSkip = [
+        ...(fileOpts.skipPatterns ?? []),
+        ...(importOpts.skipPatterns ?? []),
+    ]
+    const mergedPure = [
+        ...(fileOpts.pureReexports ?? []),
+        ...(importOpts.pureReexports ?? []),
+    ]
     genAppConfig({
         ...appConfigOpts,
         rootDir,
-        skipPatterns: importOpts.skipPatterns,
-        pureReexports: importOpts.pureReexports,
-        moduleFilePattern: importOpts.moduleFilePattern,
+        skipPatterns: mergedSkip.length ? mergedSkip : undefined,
+        pureReexports: mergedPure.length ? mergedPure : undefined,
+        moduleFilePattern: importOpts.moduleFilePattern ?? fileOpts.moduleFilePattern,
         generateJs: importOpts.generateJs,
     })
 }
