@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { GenPackageOptions } from '../@types'
-import { detectModuleType, detectProjectLanguage, toJsPath } from '../script'
+import { detectModuleType, detectProjectLanguage, filterCompatiblePackages, toJsPath } from '../script'
 import { buildPackageDts, buildPackageJs } from '../script'
 
 export function genPackage(options: GenPackageOptions = {}): void {
@@ -38,6 +38,14 @@ export function genPackage(options: GenPackageOptions = {}): void {
      if (options.excludePackages?.length) {
           packages = packages.filter((p) => !options.excludePackages!.includes(p))
      }
+
+     const { compatible, skipped } = filterCompatiblePackages(packages, rootDir)
+     if (skipped.length) {
+          console.warn(`⚠  Skipped (uses 'export =', incompatible with 'export * from'):`)
+          skipped.forEach((p) => console.warn(`   ${p}`))
+          console.warn(`   Import these directly in your source files, or use --exclude-pkg to suppress this warning.`)
+     }
+     packages = compatible
 
      if (isTs) {
           writeFileSync(outFile, buildPackageDts(packages, outFileName), 'utf-8')

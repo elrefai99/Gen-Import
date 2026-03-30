@@ -232,6 +232,41 @@ export function buildJsOutput(
      return lines.join('\n')
 }
 
+export function packageUsesExportEquals(pkgName: string, rootDir: string): boolean {
+     try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const resolutionKind = (ts.ModuleResolutionKind as any).NodeJs ?? 2
+          const result = ts.resolveModuleName(
+               pkgName,
+               join(rootDir, '__dummy__.ts'),
+               { moduleResolution: resolutionKind },
+               ts.sys,
+          )
+          const dtsPath = result.resolvedModule?.resolvedFileName
+          if (!dtsPath || !existsSync(dtsPath)) return false
+          const content = readFileSync(dtsPath, 'utf-8')
+          return /^\s*export\s*=/m.test(content)
+     } catch {
+          return false
+     }
+}
+
+export function filterCompatiblePackages(
+     packages: string[],
+     rootDir: string,
+): { compatible: string[]; skipped: string[] } {
+     const compatible: string[] = []
+     const skipped: string[] = []
+     for (const pkg of packages) {
+          if (packageUsesExportEquals(pkg, rootDir)) {
+               skipped.push(pkg)
+          } else {
+               compatible.push(pkg)
+          }
+     }
+     return { compatible, skipped }
+}
+
 export function parseBarrelExports(filePath: string): Set<string> {
      const names = new Set<string>()
      if (!existsSync(filePath)) return names
