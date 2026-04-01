@@ -1,5 +1,4 @@
-import ts from 'typescript'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { writeFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { GenImportOptions } from '../@types'
 import { walk, detectModuleType, detectProjectLanguage, toJsPath, analyzeFiles, readPreviousExports, buildDtsOutput, buildJsOutput } from '../script'
@@ -25,7 +24,9 @@ export function genImport(options: GenImportOptions = {}): void {
      // gen-package.ts from being picked up as a source and causing circular re-exports.
      const genPackageFileName = isTs ? 'gen-package.ts' : 'gen-package.js'
      const genPackagePath = join(srcDir, genPackageFileName)
-     const extraSkip = new Set([outFile, toJsPath(outFile), genPackagePath])
+     const genAppConfigFileName = isTs ? 'gen-app-config.ts' : 'gen-app-config.js'
+     const genAppConfigPath = join(srcDir, genAppConfigFileName)
+     const extraSkip = new Set([outFile, toJsPath(outFile), genPackagePath, genAppConfigPath])
 
      function shouldSkip(file: string): boolean {
           if (file.endsWith('.d.ts')) return true        // never analyse declaration files
