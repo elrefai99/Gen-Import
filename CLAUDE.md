@@ -18,6 +18,10 @@ node dist/cli.js --packages --app-config
 
 No test scripts are configured. `prepublishOnly` runs `build` automatically before publishing. Always run `pnpm build` before publishing — `dist/` is in `.gitignore` but published to npm via `.npmignore`.
 
+## CI
+
+GitHub Actions workflow (`.github/workflows/check.yml`) runs on every push: installs with pnpm 9, builds with Node 20. There are no lint or test steps — the build (`tsc`) is the only CI gate.
+
 ## Source layout
 
 ```
@@ -92,3 +96,7 @@ Reads `dependencies` (+ optionally `devDependencies`) from `package.json`, appli
 - **Module file deferral** — NestJS `*.module.ts` files reference services/repos not yet exported; deferring them prevents circular-require errors at runtime.
 - **`genAppConfig` as a zero-import aggregator** — downstream code imports only from `gen-app-config`, which re-exports from the two barrels. No file ever needs to import from individual source paths.
 - **`gen-package.ts` auto-excluded from source scans** — both `genImport` and `genAppConfig` auto-update always skip the package barrel to prevent its re-exported package symbols from appearing as project-source symbols in `gen-import.ts`.
+
+## Config file
+
+Users can place `gen-import.config.js` in the project root. It exports an object with keys: `srcDir`, `outFileName`, `moduleFilePattern`, `skipPatterns` (string[]), `pureReexports` (string[]). CLI flags always override config values. The CLI merges config-file `skipPatterns` and `pureReexports` into both `genImport` and `genAppConfig` calls.
