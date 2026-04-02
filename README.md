@@ -68,12 +68,15 @@ Add to `package.json` scripts:
 
 | File | Command | Description |
 |---|---|---|
-| `src/gen-import.d.ts` | _(default)_ | TS declaration barrel re-exporting all source exports |
-| `src/gen-import.js` | _(default)_ | JS runtime barrel (CJS or ESM, auto-detected) |
-| `src/gen-package.d.ts` | `--packages` | TS declaration barrel for npm dependencies |
+| `src/gen-import.ts` | _(default)_ | TS source barrel re-exporting all source exports (TS projects) |
+| `src/gen-import.js` | _(default)_ | JS runtime barrel (JS projects, or TS with `--no-js` disabled) |
+| `src/gen-import.d.ts` | _(default)_ | TS declaration companion (JS projects only) |
+| `src/gen-package.ts` | `--packages` | TS source barrel for npm dependencies (TS projects) |
 | `src/gen-package.js` | `--packages` | JS runtime barrel for npm dependencies |
-| `src/gen-app-config.d.ts` | `--app-config` | Server config — re-exports both barrels, **no per-file imports** |
-| `src/gen-app-config.js` | `--app-config` | JS companion for the server config |
+| `src/gen-package.d.ts` | `--packages` | TS declaration companion for npm packages (JS projects only) |
+| `src/gen-app-config.ts` | `--app-config` | Server config barrel — re-exports both barrels (TS projects) |
+| `src/gen-app-config.js` | `--app-config` | JS runtime companion for the server config |
+| `src/gen-app-config.d.ts` | `--app-config` | TS declaration companion for server config (JS projects only) |
 
 ---
 
@@ -83,29 +86,29 @@ Add to `package.json` scripts:
 Usage:
   npx gen-import [options]
 
-Source barrel  (gen-import.d.ts + gen-import.js):
+Source barrel (gen-import.ts for TS projects, gen-import.js for JS projects):
   -r, --root <dir>            Project root (default: cwd)
   -s, --src <dir>             Source directory relative to root (default: src)
-  -o, --out <filename>        Output filename inside src (default: gen-import.d.ts)
-  -m, --module-pattern <pat>  Pattern for module files deferred to end (default: .module.ts)
-  --skip <pattern>            Skip files whose path contains this string (repeatable)
-  --pure-reexport <path>      Mark a file as already re-exported elsewhere (repeatable)
+  -o, --out <filename>        Output filename inside src (default: auto-detected)
+  -m, --module-pattern <pat>  Module file pattern deferred to end (default: .module.ts)
+  --skip <pattern>            Skip files matching pattern (repeatable)
+  --pure-reexport <path>      Mark a file as pure re-export to skip (repeatable)
 
-Package barrel  (gen-package.d.ts + gen-package.js):
-  -p, --packages              Also generate the package barrel from package.json deps
+Package barrel:
+  -p, --packages              Also generate package barrel from package.json deps
   --packages-only             Only generate the package barrel, skip source barrel
-  --pkg-out <filename>        Package barrel output filename (default: gen-package.d.ts)
+  --pkg-out <filename>        Package barrel output filename (default: auto-detected)
   --include-pkg <name>        Only include this package (repeatable)
   --exclude-pkg <name>        Exclude this package (repeatable)
-  --include-dev               Also include devDependencies
+  --include-dev               Also include devDependencies in package barrel
 
-App-server config  (gen-app-config.d.ts + gen-app-config.js):
-  --app-config                Generate a server config reading only from barrel files
-  --app-config-out <filename> Config output filename (default: gen-app-config.d.ts)
-  --no-auto-update            Skip auto-appending new source exports to gen-import.d.ts
+App-server config:
+  --app-config                Generate a server config that reads only from barrel files
+  --app-config-out <filename> Config output filename (default: auto-detected)
+  --no-auto-update            Skip auto-appending new source exports to gen-import
 
 Shared:
-  --no-js                     Skip generating .js companion files (auto-skipped for TS projects)
+  --no-js                     Skip generating .js companion files
   -h, --help                  Show this help
 ```
 
@@ -113,7 +116,7 @@ Shared:
 
 ```bash
 # Custom output filename
-npx gen-import --out barrel.d.ts
+npx gen-import --out barrel.ts
 
 # Skip additional paths
 npx gen-import --skip src/types/ --skip src/app.ts
@@ -124,7 +127,7 @@ npx gen-import --pure-reexport src/config/index.ts
 # Package barrel, exclude a specific package
 npx gen-import --packages --exclude-pkg typescript
 
-# App-server config without auto-updating gen-import.d.ts
+# App-server config without auto-updating gen-import.ts
 npx gen-import --app-config --no-auto-update
 ```
 
@@ -138,7 +141,7 @@ Place `gen-import.config.js` in your project root to set persistent defaults. CL
 // gen-import.config.js
 module.exports = {
   srcDir: 'src',
-  outFileName: 'gen-import.d.ts',
+  outFileName: 'gen-import.ts', // or gen-import.js for JS projects
   moduleFilePattern: '.module.ts',
   skipPatterns: [
     'src/types/',          // global Express augmentation
@@ -170,7 +173,7 @@ Scan source files and write a deduplicated barrel.
 genImport({
   rootDir: '/path/to/project', // default: process.cwd()
   srcDir: 'src',               // default: 'src'
-  outFileName: 'gen-import.d.ts',
+  outFileName: 'gen-import.ts',
   moduleFilePattern: '.module.ts',
   skipPatterns: ['src/types/'],
   pureReexports: ['src/config/index.ts'],
@@ -182,7 +185,7 @@ genImport({
 |---|---|---|---|
 | `rootDir` | `string` | `process.cwd()` | Project root (must contain `tsconfig.json`) |
 | `srcDir` | `string` | `'src'` | Source directory relative to `rootDir` |
-| `outFileName` | `string` | `'gen-import.d.ts'` | Output filename inside `srcDir` |
+| `outFileName` | `string` | `'gen-import.ts'` (auto-detected) | Output filename inside `srcDir` |
 | `skipPatterns` | `string[]` | `[]` | Extra path substrings to skip (merged with built-ins) |
 | `pureReexports` | `string[]` | `[]` | Files already re-exported elsewhere (relative to `rootDir`) |
 | `moduleFilePattern` | `string` | `'.module.ts'` | Pattern for files deferred to end of barrel |
@@ -199,7 +202,7 @@ Read `package.json` dependencies and write a package barrel.
 ```ts
 genPackage({
   rootDir: '/path/to/project',
-  outFileName: 'gen-package.d.ts',
+  outFileName: 'gen-package.ts',
   includePackages: ['express', 'typeorm'], // whitelist — omit to include all
   excludePackages: ['typescript'],
   includeDev: false,
@@ -211,7 +214,7 @@ genPackage({
 |---|---|---|---|
 | `rootDir` | `string` | `process.cwd()` | Project root |
 | `srcDir` | `string` | `'src'` | Directory to write output into |
-| `outFileName` | `string` | `'gen-package.d.ts'` | Output filename inside `srcDir` |
+| `outFileName` | `string` | `'gen-package.ts'` (auto) | Output filename inside `srcDir` |
 | `includePackages` | `string[]` | _(all deps)_ | Whitelist specific packages |
 | `excludePackages` | `string[]` | `[]` | Always exclude these packages |
 | `includeDev` | `boolean` | `false` | Also include `devDependencies` |
@@ -221,15 +224,15 @@ genPackage({
 
 ### genAppConfig
 
-Generate a server-config barrel that **reads only from the two barrel files** — no per-file imports anywhere. Optionally auto-appends new source exports to `gen-import.d.ts`.
+Generate a server-config barrel that **reads only from the two barrel files** — no per-file imports anywhere. Optionally auto-appends new source exports to your source barrel (`gen-import.ts`).
 
 ```ts
 genAppConfig({
   rootDir: '/path/to/project',
-  outFileName: 'gen-app-config.d.ts', // default
-  genImportFile: 'gen-import.d.ts',   // barrel to re-export source exports from
-  genPackageFile: 'gen-package.d.ts', // barrel to re-export package exports from
-  autoUpdate: true,    // scan sources, append new exports to gen-import.d.ts
+  outFileName: 'gen-app-config.ts', // auto-detected
+  genImportFile: 'gen-import.ts',   // barrel to re-export source exports from
+  genPackageFile: 'gen-package.ts', // barrel to re-export package exports from
+  autoUpdate: true,    // scan sources, append new exports to gen-import.ts
   generateJs: true,
 })
 ```
@@ -238,10 +241,10 @@ genAppConfig({
 |---|---|---|---|
 | `rootDir` | `string` | `process.cwd()` | Project root |
 | `srcDir` | `string` | `'src'` | Source / output directory |
-| `outFileName` | `string` | `'gen-app-config.d.ts'` | Config output filename |
-| `genImportFile` | `string` | `'gen-import.d.ts'` | Source barrel to re-export |
-| `genPackageFile` | `string` | `'gen-package.d.ts'` | Package barrel to re-export |
-| `autoUpdate` | `boolean` | `true` | Append newly found source exports to `gen-import.d.ts` |
+| `outFileName` | `string` | `'gen-app-config.ts'` (auto) | Config output filename |
+| `genImportFile` | `string` | `'gen-import.ts'` (auto) | Source barrel to re-export |
+| `genPackageFile` | `string` | `'gen-package.ts'` (auto) | Package barrel to re-export |
+| `autoUpdate` | `boolean` | `true` | Append newly found source exports to `gen-import.ts` |
 | `skipPatterns` | `string[]` | `[]` | Pass-through for source scanning during auto-update |
 | `pureReexports` | `string[]` | `[]` | Pass-through for source scanning during auto-update |
 | `moduleFilePattern` | `string` | `'.module.ts'` | Pass-through for source scanning during auto-update |
@@ -266,19 +269,19 @@ Reads `dependencies` (and optionally `devDependencies`) from `package.json` and 
 
 ### App-server config
 
-1. **Auto-update** (when `autoUpdate: true`) — scans source files, compares against what is already in `gen-import.d.ts`, and appends only the new exports. Also regenerates the `gen-import.js` companion.
-2. **Writes** `gen-app-config.d.ts` with two lines — `export * from './gen-import'` and `export * from './gen-package'`. No individual source-file imports.
+1. **Auto-update** (when `autoUpdate: true`) — scans source files, compares against what is already in `gen-import.ts`, and appends only the new exports. Also regenerates the `gen-import.js` companion if enabled.
+2. **Writes** `gen-app-config.ts` with two lines — `export * from './gen-import'` and `export * from './gen-package'`. No individual source-file imports.
 3. **Writes** the `.js` companion using `require` (CJS) or `export *` (ESM), pointing at the two barrel `.js` files only.
 
 ---
 
 ## Example output
 
-### `src/gen-import.d.ts`
+### `src/gen-import.ts`
 
 ```ts
 /**
- * gen-import.d.ts — AUTO-GENERATED, do not edit manually.
+ * gen-import.ts — AUTO-GENERATED, do not edit manually.
  * Regenerate: npx gen-import
  */
 
@@ -289,11 +292,11 @@ export { default as userConfig } from './config/user.config';
 export { UserModule } from './User/user.module';
 ```
 
-### `src/gen-package.d.ts`
+### `src/gen-package.ts`
 
 ```ts
 /**
- * gen-package.d.ts — AUTO-GENERATED, do not edit manually.
+ * gen-package.ts — AUTO-GENERATED, do not edit manually.
  * Regenerate: npx gen-import --packages
  */
 
@@ -302,11 +305,11 @@ export * from 'typeorm';
 export * from 'class-validator';
 ```
 
-### `src/gen-app-config.d.ts`
+### `src/gen-app-config.ts`
 
 ```ts
 /**
- * gen-app-config.d.ts — AUTO-GENERATED, do not edit manually.
+ * gen-app-config.ts — AUTO-GENERATED, do not edit manually.
  * Regenerate: npx gen-import --app-config
  * Imports only from barrel files — no per-file imports.
  */
