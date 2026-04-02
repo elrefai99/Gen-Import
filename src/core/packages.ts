@@ -48,14 +48,14 @@ export function genPackage(options: GenPackageOptions = {}): void {
      packages = compatible
 
      if (isTs) {
-          writeFileSync(outFile, buildPackageDts(packages, outFileName), 'utf-8')
+          writeFileSync(outFile, buildPackageDts(packages, outFileName, rootDir), 'utf-8')
      } else {
           writeFileSync(outFile, buildPackageJs(packages, outFileName, moduleType), 'utf-8')
      }
 
      if (writeTypeDecl) {
           const dtsFile = outFile.replace(/\.js$/, '.d.ts')
-          writeFileSync(dtsFile, buildPackageDts(packages, outFileName.replace(/\.js$/, '.d.ts')), 'utf-8')
+          writeFileSync(dtsFile, buildPackageDts(packages, outFileName.replace(/\.js$/, '.d.ts'), rootDir), 'utf-8')
           console.log(`✓  ${relative(rootDir, dtsFile)}`)
      }
 

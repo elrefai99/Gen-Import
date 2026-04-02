@@ -70,7 +70,7 @@ export function buildPackageJs(packages: string[], outFileName: string, moduleTy
      lines.push('')
      return lines.join('\n')
 }
-export function buildPackageDts(packages: string[], outFileName: string): string {
+export function buildPackageDts(packages: string[], outFileName: string, rootDir?: string): string {
      const baseName = outFileName.replace(/\.d\.ts$/, '').replace(/\.ts$/, '')
      const lines: string[] = [
           '/**',
@@ -79,9 +79,62 @@ export function buildPackageDts(packages: string[], outFileName: string): string
           ' */',
           '',
      ]
-     for (const pkg of packages) {
-          lines.push(`export * from '${pkg}';`)
+
+     if (!rootDir) {
+          for (const pkg of packages) {
+               lines.push(`export * from '${pkg}';`)
+          }
+          lines.push('')
+          return lines.join('\n')
      }
+
+     // Collect exports per package to detect cross-package name conflicts
+     const pkgExports = new Map<string, string[]>()
+     for (const pkg of packages) {
+          pkgExports.set(pkg, getPackageExportNames(pkg, rootDir))
+     }
+
+     // Build a map of name → packages that export it (excluding 'default')
+     const nameOwners = new Map<string, string[]>()
+     for (const [pkg, names] of pkgExports) {
+          for (const name of names) {
+               if (name === 'default') continue
+               if (!nameOwners.has(name)) nameOwners.set(name, [])
+               nameOwners.get(name)!.push(pkg)
+          }
+     }
+
+     const conflicting = new Set(
+          [...nameOwners.entries()]
+               .filter(([, owners]) => owners.length > 1)
+               .map(([name]) => name),
+     )
+
+     const resolved = new Set<string>()
+
+     for (const pkg of packages) {
+          const names = pkgExports.get(pkg) ?? []
+          const hasConflict = names.some((n) => conflicting.has(n))
+
+          if (!hasConflict) {
+               lines.push(`export * from '${pkg}';`)
+               continue
+          }
+
+          // Emit only non-conflicting named exports from this package
+          const safe = names.filter((n) => n !== 'default' && !conflicting.has(n))
+          if (safe.length) {
+               lines.push(`export { ${safe.join(', ')} } from '${pkg}';`)
+          }
+
+          // First-seen package wins each conflicting name
+          const win = names.filter((n) => n !== 'default' && conflicting.has(n) && !resolved.has(n))
+          if (win.length) {
+               lines.push(`export { ${win.join(', ')} } from '${pkg}';`)
+               win.forEach((n) => resolved.add(n))
+          }
+     }
+
      lines.push('')
      return lines.join('\n')
 }
@@ -230,6 +283,33 @@ export function buildJsOutput(
 
      lines.push('')
      return lines.join('\n')
+}
+
+export function getPackageExportNames(pkgName: string, rootDir: string): string[] {
+     try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const resolutionKind = (ts.ModuleResolutionKind as any).NodeJs ?? 2
+          const result = ts.resolveModuleName(
+               pkgName,
+               join(rootDir, '__dummy__.ts'),
+               { moduleResolution: resolutionKind },
+               ts.sys,
+          )
+          const dtsPath = result.resolvedModule?.resolvedFileName
+          if (!dtsPath || !existsSync(dtsPath)) return []
+
+          const program = ts.createProgram([dtsPath], { moduleResolution: resolutionKind })
+          const checker = program.getTypeChecker()
+          const sf = program.getSourceFile(dtsPath)
+          if (!sf) return []
+
+          const mod = checker.getSymbolAtLocation(sf)
+          if (!mod) return []
+
+          return checker.getExportsOfModule(mod).map((s) => s.getName())
+     } catch {
+          return []
+     }
 }
 
 export function packageUsesExportEquals(pkgName: string, rootDir: string): boolean {
