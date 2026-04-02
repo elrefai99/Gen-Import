@@ -99,4 +99,18 @@ Reads `dependencies` (+ optionally `devDependencies`) from `package.json`, appli
 
 ## Config file
 
-Users can place `gen-import.config.js` in the project root. It exports an object with keys: `srcDir`, `outFileName`, `moduleFilePattern`, `skipPatterns` (string[]), `pureReexports` (string[]). CLI flags always override config values. The CLI merges config-file `skipPatterns` and `pureReexports` into both `genImport` and `genAppConfig` calls.
+Users can place `gen-import.config.js` in the project root. It exports an object with keys: `srcDir`, `outFileName`, `moduleFilePattern`, `skipPatterns` (string[]), `pureReexports` (string[]), `generateJs` (bool). CLI flags always override config values. The CLI merges config-file `skipPatterns` and `pureReexports` into both `genImport` and `genAppConfig` calls.
+
+## Programmatic API
+
+`src/index.ts` exports `genImport`, `genPackage`, and `genAppConfig` for programmatic use — all accept the typed options interfaces from `src/@types/index.d.ts`. `GenAppConfigOptions` has two additional fields vs the config file: `genImportFile` and `genPackageFile` (absolute paths to override the default barrel locations).
+
+## Examples
+
+`examples/express-app/` is a working Express project that dogfoods the tool. Its `src/gen-import.ts`, `src/gen-package.ts`, and `src/gen-app-config.ts` show the exact barrel output format for a TS project with dependencies.
+
+## Skills
+
+Two slash commands are defined in `.claude/skills/`:
+- `/build` — builds and verifies `dist/cli.js` and `dist/index.js` exist
+- `/release [patch|minor|major]` — bumps version, builds, confirms with user, then publishes to npm
