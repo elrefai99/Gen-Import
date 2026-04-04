@@ -10,7 +10,7 @@
     "gen": "node ../../dist/cli.js --packages --app-config --exclude-pkg express",
     "gen:source": "node ../../dist/cli.js",
     "gen:packages": "node ../../dist/cli.js --packages-only --exclude-pkg express",
-    "gen:all": "node ../../dist/cli.js --packages --app-config --exclude-pkg express"
+    "gen:all": "node ../../dist/cli.js --packages --globals --app-config --exclude-pkg express"
   },
   "dependencies": {
     "dotenv": "^16.4.0",

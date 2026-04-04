@@ -1,15 +1,14 @@
+// Must be first — registers all source exports (authMiddleware, userRouter, PORT, …) as globals.
+import './gen-import'
+
 import express from 'express'
 
-// All application symbols come from the barrel files — no direct source imports.
-// gen-app-config re-exports everything from gen-import + gen-package in one place.
-import { userRouter, authMiddleware, PORT } from './gen-app-config'
-
-const app = express()
+const app: express.Application = express()
 
 app.use(express.json())
 
 // Public routes
-app.get('/health', (_req, res) => res.json({ status: 'ok' }))
+app.get('/health', (_req: any, res: any) => res.json({ status: 'ok' }))
 
 // Protected routes
 app.use('/users', authMiddleware, userRouter)

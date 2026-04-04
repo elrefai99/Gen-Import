@@ -6,7 +6,7 @@ import { UserService } from './user.service'
 
 const service = new UserService()
 
-export const userRouter = express.Router()
+export const userRouter: express.Router = express.Router()
 
 userRouter.get('/', (_req: Request, res: Response) => {
     res.json(service.getAll())

@@ -53,6 +53,10 @@ function parseArgs(argv: string[]): CliArgs {
                 importOpts.pureReexports = [...(importOpts.pureReexports ?? []), next]
                 i++
                 break
+            case '--globals':
+            case '-g':
+                importOpts.globals = true
+                break
             case '--no-js':
                 importOpts.generateJs = false
                 packageOpts.generateJs = false
@@ -117,6 +121,7 @@ Source barrel (gen-import.ts for TS projects, gen-import.js for JS projects):
   -s, --src <dir>             Source directory relative to root (default: src)
   -o, --out <filename>        Output filename inside src (default: auto-detected)
   -m, --module-pattern <pat>  Module file pattern deferred to end (default: .module.ts)
+  -g, --globals               Register all exports on Node.js global (no per-file imports needed)
   --skip <pattern>            Skip files matching pattern (repeatable)
   --pure-reexport <path>      Mark a file as pure re-export to skip (repeatable)
 
@@ -155,6 +160,7 @@ Output files:
   gen-package.js       JavaScript runtime barrel for npm packages
   gen-app-config.d.ts  Server config — re-exports both barrels, no per-file imports
   gen-app-config.js    JavaScript companion for the server config
+  (with --globals: gen-import.ts/.js also registers all exports on Node.js global)
 `)
 }
 
@@ -191,3 +197,4 @@ if (runAppConfig) {
         generateJs: importOpts.generateJs,
     })
 }
+

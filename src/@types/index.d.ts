@@ -18,6 +18,7 @@ export interface GenImportOptions {
      pureReexports?: string[]
      moduleFilePattern?: string
      generateJs?: boolean
+     globals?: boolean
 }
 
 export interface GenPackageOptions {
