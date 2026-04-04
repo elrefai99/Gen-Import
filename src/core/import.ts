@@ -1,7 +1,7 @@
 import { writeFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { GenImportOptions } from '../@types'
-import { walk, detectModuleType, detectProjectLanguage, toJsPath, analyzeFiles, readPreviousExports, buildDtsOutput, buildJsOutput } from '../script'
+import { walk, detectModuleType, detectProjectLanguage, toJsPath, analyzeFiles, readPreviousExports, buildDtsOutput, buildJsOutput, buildGlobalDtsOutput, buildGlobalJsOutput, buildGlobalDts } from '../script'
 import { DEFAULT_MODULE_FILE_PATTERN, DEFAULT_SKIP_PATTERNS } from '..'
 
 export function genImport(options: GenImportOptions = {}): void {
@@ -16,6 +16,7 @@ export function genImport(options: GenImportOptions = {}): void {
      const writeTypeDecl = !isTs && !outFileName.endsWith('.d.ts')
 
      const generateJs = options.generateJs ?? false  // only used when outFile is .ts
+     const globals = options.globals ?? false
      const moduleFilePattern = options.moduleFilePattern ?? DEFAULT_MODULE_FILE_PATTERN
      const pureReexports = new Set(options.pureReexports ?? [])
      const skipPatterns = [...DEFAULT_SKIP_PATTERNS, ...(options.skipPatterns ?? [])]
@@ -49,21 +50,34 @@ export function genImport(options: GenImportOptions = {}): void {
      const prevExports = readPreviousExports(outFile)
 
      if (isTs) {
-          writeFileSync(outFile, buildDtsOutput(infos, outFileName), 'utf-8')
+          const content = globals
+               ? buildGlobalDtsOutput(infos, outFileName)
+               : buildDtsOutput(infos, outFileName)
+          writeFileSync(outFile, content, 'utf-8')
      } else {
-          writeFileSync(outFile, buildJsOutput(infos, outFileName, moduleType), 'utf-8')
+          const content = globals
+               ? buildGlobalJsOutput(infos, outFileName, moduleType)
+               : buildJsOutput(infos, outFileName, moduleType)
+          writeFileSync(outFile, content, 'utf-8')
      }
 
      if (writeTypeDecl) {
           const dtsFile = outFile.replace(/\.js$/, '.d.ts')
-          writeFileSync(dtsFile, buildDtsOutput(infos, outFileName.replace(/\.js$/, '.d.ts')), 'utf-8')
+          const dtsName = outFileName.replace(/\.js$/, '.d.ts')
+          const dtsContent = globals
+               ? buildGlobalDts(infos, dtsName)
+               : buildDtsOutput(infos, dtsName)
+          writeFileSync(dtsFile, dtsContent, 'utf-8')
           console.log(`✓  ${relative(rootDir, dtsFile)}`)
      }
 
      // TS projects with explicit generateJs: also write a .js runtime companion
      if (isTs && generateJs) {
           const jsFile = toJsPath(outFile)
-          writeFileSync(jsFile, buildJsOutput(infos, outFileName, moduleType), 'utf-8')
+          const jsContent = globals
+               ? buildGlobalJsOutput(infos, outFileName, moduleType)
+               : buildJsOutput(infos, outFileName, moduleType)
+          writeFileSync(jsFile, jsContent, 'utf-8')
           console.log(`✓  ${relative(rootDir, jsFile)}`)
      }
 
@@ -77,7 +91,7 @@ export function genImport(options: GenImportOptions = {}): void {
           .filter((name) => !prevExports.has(name))
 
      console.log(`✓  ${relative(rootDir, outFile)}`)
-     console.log(`   ${infos.length} source files · ${total} exports · ${isTs ? 'typescript' : 'javascript'} · module: ${moduleType}`)
+     console.log(`   ${infos.length} source files · ${total} exports · ${isTs ? 'typescript' : 'javascript'} · module: ${moduleType}${globals ? ' · globals: on' : ''}`)
      if (newExports.length) {
           console.log(`   +${newExports.length} new: ${newExports.join(', ')}`)
      }

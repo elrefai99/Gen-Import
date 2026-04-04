@@ -139,6 +139,202 @@ export function buildPackageDts(packages: string[], outFileName: string, rootDir
      return lines.join('\n')
 }
 
+/**
+ * Like buildDtsOutput but also registers value exports on Node.js global.
+ * Import the generated file once in your app entry point — all exports become
+ * available everywhere without per-file imports.
+ */
+export function buildGlobalDtsOutput(infos: FileInfo[], outFileName: string): string {
+     const seenTypes = new Set<string>()
+     const seenValues = new Set<string>()
+
+     const lines: string[] = [
+          '/**',
+          ` * ${outFileName} — AUTO-GENERATED, do not edit manually.`,
+          ' * Regenerate: npx gen-import --globals',
+          ' *',
+          " * Import once in your entry point: import './gen-import'",
+          ' * After that, all exports are available as globals — no per-file imports needed.',
+          ' */',
+          '',
+     ]
+
+     // Collect per-file import groups.
+     // Values are imported with a _ prefix alias to break the circular type reference:
+     //   `var foo: typeof foo` inside declare global resolves to itself (TS2502).
+     //   `var foo: typeof _foo` resolves to the local import — no circularity.
+     const typeReexports: string[] = []
+     const valueImports: string[] = []
+     const allValueNames: string[] = []   // original names (for export / Object.assign)
+     const allAliasNames: string[] = []   // _ prefixed (for declare global typeof)
+
+     for (const { importPath, types, values, defaultAlias } of infos) {
+          const t = types.filter((n) => !seenTypes.has(n) && !seenValues.has(n))
+          const v = values.filter((n) => !seenValues.has(n) && !seenTypes.has(n))
+          t.forEach((n) => seenTypes.add(n))
+          v.forEach((n) => seenValues.add(n))
+
+          const hasDefault = defaultAlias && !seenValues.has(defaultAlias)
+          if (hasDefault) seenValues.add(defaultAlias!)
+
+          if (t.length) typeReexports.push(`export type { ${t.join(', ')} } from '${importPath}';`)
+
+          const importNames = [
+               ...v.map((n) => `${n} as _${n}`),
+               ...(hasDefault ? [`default as _${defaultAlias}`] : []),
+          ]
+          if (importNames.length) {
+               valueImports.push(`import { ${importNames.join(', ')} } from '${importPath}';`)
+               allValueNames.push(...v, ...(hasDefault ? [defaultAlias!] : []))
+               allAliasNames.push(...v.map((n) => `_${n}`), ...(hasDefault ? [`_${defaultAlias!}`] : []))
+          }
+     }
+
+     lines.push(...typeReexports)
+     if (typeReexports.length && valueImports.length) lines.push('')
+     lines.push(...valueImports)
+
+     if (allValueNames.length) {
+          // export { _foo as foo }
+          const exportPairs = allValueNames.map((n, i) => `${allAliasNames[i]} as ${n}`)
+          lines.push('')
+          lines.push(`export { ${exportPairs.join(', ')} };`)
+          // Object.assign with original names: { foo: _foo }
+          const assignPairs = allValueNames.map((n, i) => `${n}: ${allAliasNames[i]}`)
+          lines.push('')
+          lines.push(`Object.assign(global as any, { ${assignPairs.join(', ')} });`)
+          lines.push('')
+          lines.push('declare global {')
+          for (let i = 0; i < allValueNames.length; i++) {
+               lines.push(`  var ${allValueNames[i]}: typeof ${allAliasNames[i]}`)
+          }
+          lines.push('}')
+     }
+
+     lines.push('')
+     return lines.join('\n')
+}
+
+/**
+ * Like buildJsOutput but also registers value exports on Node.js global.
+ */
+export function buildGlobalJsOutput(
+     infos: FileInfo[],
+     outFileName: string,
+     moduleType: 'esm' | 'cjs',
+): string {
+     const seen = new Set<string>()
+     const baseName = outFileName.replace(/\.d\.ts$/, '').replace(/\.ts$/, '')
+     const allValueNames: string[] = []
+
+     const lines: string[] = [
+          '/**',
+          ` * ${baseName}.js — AUTO-GENERATED, do not edit manually.`,
+          ' * Regenerate: npx gen-import --globals',
+          ' */',
+          '',
+     ]
+
+     if (moduleType === 'cjs') {
+          lines.push('"use strict";')
+          lines.push('Object.defineProperty(exports, "__esModule", { value: true });')
+          lines.push('')
+
+          for (const { importPath, values, defaultAlias } of infos) {
+               const v = values.filter((n) => !seen.has(n))
+               v.forEach((n) => seen.add(n))
+               const hasDefault = defaultAlias && !seen.has(defaultAlias)
+               if (hasDefault) seen.add(defaultAlias!)
+
+               if (!v.length && !hasDefault) continue
+
+               const destructured = [
+                    ...v,
+                    ...(hasDefault ? [`default: ${defaultAlias}`] : []),
+               ].join(', ')
+               lines.push(`const { ${destructured} } = require('${importPath}');`)
+               allValueNames.push(...v, ...(hasDefault ? [defaultAlias!] : []))
+          }
+
+          if (allValueNames.length) {
+               lines.push('')
+               lines.push(`Object.assign(exports, { ${allValueNames.join(', ')} });`)
+               lines.push(`Object.assign(global, { ${allValueNames.join(', ')} });`)
+          }
+     } else {
+          for (const { importPath, values, defaultAlias } of infos) {
+               const v = values.filter((n) => !seen.has(n))
+               v.forEach((n) => seen.add(n))
+               const hasDefault = defaultAlias && !seen.has(defaultAlias)
+               if (hasDefault) seen.add(defaultAlias!)
+
+               if (!v.length && !hasDefault) continue
+
+               const named = [...v, ...(hasDefault ? [`default as ${defaultAlias}`] : [])]
+               lines.push(`import { ${named.join(', ')} } from '${importPath}';`)
+               allValueNames.push(...v, ...(hasDefault ? [defaultAlias!] : []))
+          }
+
+          if (allValueNames.length) {
+               lines.push('')
+               lines.push(`export { ${allValueNames.join(', ')} };`)
+               lines.push(`Object.assign(globalThis, { ${allValueNames.join(', ')} });`)
+          }
+     }
+
+     lines.push('')
+     return lines.join('\n')
+}
+
+/**
+ * Companion .d.ts for JS projects using --globals.
+ * Adds declare global { var ... } after the normal re-exports.
+ */
+export function buildGlobalDts(infos: FileInfo[], outFileName: string): string {
+     const seen = new Set<string>()
+
+     const lines: string[] = [
+          '/**',
+          ` * ${outFileName} — AUTO-GENERATED, do not edit manually.`,
+          ' * Regenerate: npx gen-import --globals',
+          ' */',
+          '',
+     ]
+
+     const globalDecls: string[] = []
+
+     for (const { importPath, types, values, defaultAlias } of infos) {
+          const t = types.filter((n) => !seen.has(n))
+          const v = values.filter((n) => !seen.has(n))
+          t.forEach((n) => seen.add(n))
+          v.forEach((n) => seen.add(n))
+
+          const hasDefault = defaultAlias && !seen.has(defaultAlias)
+          if (hasDefault) seen.add(defaultAlias!)
+
+          if (t.length) lines.push(`export type { ${t.join(', ')} } from '${importPath}';`)
+          if (v.length) lines.push(`export { ${v.join(', ')} } from '${importPath}';`)
+          if (hasDefault) lines.push(`export { default as ${defaultAlias} } from '${importPath}';`)
+
+          for (const name of v) {
+               globalDecls.push(`  var ${name}: typeof import('${importPath}').${name}`)
+          }
+          if (hasDefault) {
+               globalDecls.push(`  var ${defaultAlias}: typeof import('${importPath}').default`)
+          }
+     }
+
+     if (globalDecls.length) {
+          lines.push('')
+          lines.push('declare global {')
+          lines.push(...globalDecls)
+          lines.push('}')
+     }
+
+     lines.push('')
+     return lines.join('\n')
+}
+
 export function readPreviousExports(outFile: string): Set<string> {
      if (!existsSync(outFile)) return new Set()
      const content = readFileSync(outFile, 'utf-8')
