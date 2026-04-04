@@ -18,6 +18,8 @@ node dist/cli.js --packages --app-config
 
 No test scripts are configured. `prepublishOnly` runs `build` automatically before publishing. Always run `pnpm build` before publishing — `dist/` is in `.gitignore` but published to npm via `.npmignore`.
 
+Requires Node.js >=16.
+
 ## CI
 
 GitHub Actions workflow (`.github/workflows/check.yml`) runs on every push: installs with pnpm 9, builds with Node 20. There are no lint or test steps — the build (`tsc`) is the only CI gate.
@@ -40,7 +42,7 @@ src/
                          toJsPath, analyzeFiles, buildDtsOutput, buildJsOutput,
                          buildPackageDts, buildPackageJs, readPreviousExports, parseBarrelExports)
   gen-import.ts       — auto-generated barrel (dogfoods the tool); do not edit
-  gen-app-config.ts   — auto-generated aggregator barrel; do not edit
+  gen-app-config.d.ts — auto-generated aggregator barrel; do not edit
   gen-package.d.ts    — auto-generated package barrel; do not edit
 ```
 
@@ -111,6 +113,8 @@ Users can place `gen-import.config.js` in the project root. It exports an object
 
 ## Skills
 
-Two slash commands are defined in `.claude/skills/`:
+Slash commands defined in `.claude/skills/` and `.claude/commands/`:
 - `/build` — builds and verifies `dist/cli.js` and `dist/index.js` exist
 - `/release [patch|minor|major]` — bumps version, builds, confirms with user, then publishes to npm
+- `/fix-issues [file...]` — diagnoses and fixes code/security issues in the given files (or current git diff)
+- `/review [file...]` — full code review on given files or current diff
