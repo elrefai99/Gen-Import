@@ -2,7 +2,7 @@ import { writeFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { GenImportOptions } from '../@types'
 import { walk, detectModuleType, detectProjectLanguage, toJsPath, analyzeFiles, readPreviousExports, buildDtsOutput, buildJsOutput, buildGlobalDtsOutput, buildGlobalJsOutput, buildGlobalDts } from '../script'
-import { DEFAULT_MODULE_FILE_PATTERN, DEFAULT_SKIP_PATTERNS } from '..'
+import { DEFAULT_MODULE_FILE_PATTERNS, DEFAULT_SKIP_PATTERNS } from '..'
 
 export function genImport(options: GenImportOptions = {}): void {
      const rootDir = resolve(options.rootDir ?? process.cwd())
@@ -17,7 +17,9 @@ export function genImport(options: GenImportOptions = {}): void {
 
      const generateJs = options.generateJs ?? false  // only used when outFile is .ts
      const globals = options.globals ?? false
-     const moduleFilePattern = options.moduleFilePattern ?? DEFAULT_MODULE_FILE_PATTERN
+     const moduleFilePatterns = options.moduleFilePattern
+          ? (Array.isArray(options.moduleFilePattern) ? options.moduleFilePattern : [options.moduleFilePattern])
+          : DEFAULT_MODULE_FILE_PATTERNS
      const pureReexports = new Set(options.pureReexports ?? [])
      const skipPatterns = [...DEFAULT_SKIP_PATTERNS, ...(options.skipPatterns ?? [])]
 
@@ -39,7 +41,7 @@ export function genImport(options: GenImportOptions = {}): void {
      }
 
      function isModuleFile(file: string): boolean {
-          return file.includes(moduleFilePattern)
+          return moduleFilePatterns.some((p) => file.includes(p))
      }
 
      const allFiles = walk(srcDir).filter((f) => !shouldSkip(f)).sort()

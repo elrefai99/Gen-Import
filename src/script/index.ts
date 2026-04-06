@@ -39,105 +39,6 @@ export function toJsPath(filePath: string): string {
      return filePath.replace(/\.d\.ts$/, '.js').replace(/(?<!\.d)\.ts$/, '.js')
 }
 
-export function buildPackageJs(packages: string[], outFileName: string, moduleType: 'esm' | 'cjs',): string {
-     const baseName = outFileName.replace(/\.d\.ts$/, '').replace(/\.ts$/, '')
-     const lines: string[] = [
-          '/**',
-          ` * ${baseName}.js — AUTO-GENERATED, do not edit manually.`,
-          ' * Regenerate: npx gen-import --packages',
-          ' */',
-          '',
-     ]
-
-     if (moduleType === 'esm') {
-          for (const pkg of packages) {
-               lines.push(`export * from '${pkg}';`)
-          }
-     } else {
-          lines.push('"use strict";')
-          lines.push('Object.defineProperty(exports, "__esModule", { value: true });')
-          lines.push('')
-          for (const pkg of packages) {
-               const id = pkg.replace(/[^a-zA-Z0-9_$]/g, '_')
-               lines.push(`const _${id} = require('${pkg}');`)
-               lines.push(
-                    `if (_${id} && typeof _${id} === 'object') ` +
-                    `Object.keys(_${id}).forEach(function(k) { if (k !== 'default') exports[k] = _${id}[k]; });`,
-               )
-          }
-     }
-
-     lines.push('')
-     return lines.join('\n')
-}
-export function buildPackageDts(packages: string[], outFileName: string, rootDir?: string): string {
-     const baseName = outFileName.replace(/\.d\.ts$/, '').replace(/\.ts$/, '')
-     const lines: string[] = [
-          '/**',
-          ` * ${baseName}.d.ts — AUTO-GENERATED, do not edit manually.`,
-          ' * Regenerate: npx gen-import --packages',
-          ' */',
-          '',
-     ]
-
-     if (!rootDir) {
-          for (const pkg of packages) {
-               lines.push(`export * from '${pkg}';`)
-          }
-          lines.push('')
-          return lines.join('\n')
-     }
-
-     // Collect exports per package to detect cross-package name conflicts
-     const pkgExports = new Map<string, string[]>()
-     for (const pkg of packages) {
-          pkgExports.set(pkg, getPackageExportNames(pkg, rootDir))
-     }
-
-     // Build a map of name → packages that export it (excluding 'default')
-     const nameOwners = new Map<string, string[]>()
-     for (const [pkg, names] of pkgExports) {
-          for (const name of names) {
-               if (name === 'default') continue
-               if (!nameOwners.has(name)) nameOwners.set(name, [])
-               nameOwners.get(name)!.push(pkg)
-          }
-     }
-
-     const conflicting = new Set(
-          [...nameOwners.entries()]
-               .filter(([, owners]) => owners.length > 1)
-               .map(([name]) => name),
-     )
-
-     const resolved = new Set<string>()
-
-     for (const pkg of packages) {
-          const names = pkgExports.get(pkg) ?? []
-          const hasConflict = names.some((n) => conflicting.has(n))
-
-          if (!hasConflict) {
-               lines.push(`export * from '${pkg}';`)
-               continue
-          }
-
-          // Emit only non-conflicting named exports from this package
-          const safe = names.filter((n) => n !== 'default' && !conflicting.has(n))
-          if (safe.length) {
-               lines.push(`export { ${safe.join(', ')} } from '${pkg}';`)
-          }
-
-          // First-seen package wins each conflicting name
-          const win = names.filter((n) => n !== 'default' && conflicting.has(n) && !resolved.has(n))
-          if (win.length) {
-               lines.push(`export { ${win.join(', ')} } from '${pkg}';`)
-               win.forEach((n) => resolved.add(n))
-          }
-     }
-
-     lines.push('')
-     return lines.join('\n')
-}
 
 /**
  * Like buildDtsOutput but also registers value exports on Node.js global.
@@ -248,17 +149,18 @@ export function buildGlobalJsOutput(
 
                if (!v.length && !hasDefault) continue
 
-               const destructured = [
-                    ...v,
-                    ...(hasDefault ? [`default: ${defaultAlias}`] : []),
-               ].join(', ')
-               lines.push(`const { ${destructured} } = require('${importPath}');`)
+               // Lazy getters to avoid circular-dependency undefined at init time
+               for (const name of v) {
+                    lines.push(`Object.defineProperty(exports, '${name}', { get: () => require('${importPath}').${name}, enumerable: true, configurable: true });`)
+               }
+               if (hasDefault) {
+                    lines.push(`Object.defineProperty(exports, '${defaultAlias}', { get: () => require('${importPath}').default, enumerable: true, configurable: true });`)
+               }
                allValueNames.push(...v, ...(hasDefault ? [defaultAlias!] : []))
           }
 
           if (allValueNames.length) {
                lines.push('')
-               lines.push(`Object.assign(exports, { ${allValueNames.join(', ')} });`)
                lines.push(`Object.assign(global, { ${allValueNames.join(', ')} });`)
           }
      } else {
@@ -464,15 +366,12 @@ export function buildJsOutput(
                const named = [...v, ...(hasDefault ? [`default as ${defaultAlias}`] : [])]
                if (named.length) lines.push(`export { ${named.join(', ')} } from '${importPath}';`)
           } else {
-               // CJS
-               if (v.length || hasDefault) {
-                    const destructured = [
-                         ...v,
-                         ...(hasDefault ? [`default: ${defaultAlias}`] : []),
-                    ].join(', ')
-                    lines.push(`const { ${destructured} } = require('${importPath}');`)
-                    const exported = [...v, ...(hasDefault ? [defaultAlias!] : [])].join(', ')
-                    lines.push(`Object.assign(exports, { ${exported} });`)
+               // CJS — use lazy getters to avoid circular-dependency undefined at init time
+               for (const name of v) {
+                    lines.push(`Object.defineProperty(exports, '${name}', { get: () => require('${importPath}').${name}, enumerable: true, configurable: true });`)
+               }
+               if (hasDefault) {
+                    lines.push(`Object.defineProperty(exports, '${defaultAlias}', { get: () => require('${importPath}').default, enumerable: true, configurable: true });`)
                }
           }
      }
@@ -481,67 +380,6 @@ export function buildJsOutput(
      return lines.join('\n')
 }
 
-export function getPackageExportNames(pkgName: string, rootDir: string): string[] {
-     try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const resolutionKind = (ts.ModuleResolutionKind as any).NodeJs ?? 2
-          const result = ts.resolveModuleName(
-               pkgName,
-               join(rootDir, '__dummy__.ts'),
-               { moduleResolution: resolutionKind },
-               ts.sys,
-          )
-          const dtsPath = result.resolvedModule?.resolvedFileName
-          if (!dtsPath || !existsSync(dtsPath)) return []
-
-          const program = ts.createProgram([dtsPath], { moduleResolution: resolutionKind })
-          const checker = program.getTypeChecker()
-          const sf = program.getSourceFile(dtsPath)
-          if (!sf) return []
-
-          const mod = checker.getSymbolAtLocation(sf)
-          if (!mod) return []
-
-          return checker.getExportsOfModule(mod).map((s) => s.getName())
-     } catch {
-          return []
-     }
-}
-
-export function packageUsesExportEquals(pkgName: string, rootDir: string): boolean {
-     try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const resolutionKind = (ts.ModuleResolutionKind as any).NodeJs ?? 2
-          const result = ts.resolveModuleName(
-               pkgName,
-               join(rootDir, '__dummy__.ts'),
-               { moduleResolution: resolutionKind },
-               ts.sys,
-          )
-          const dtsPath = result.resolvedModule?.resolvedFileName
-          if (!dtsPath || !existsSync(dtsPath)) return false
-          const content = readFileSync(dtsPath, 'utf-8')
-          return /^\s*export\s*=/m.test(content)
-     } catch {
-          return false
-     }
-}
-
-export function filterCompatiblePackages(
-     packages: string[],
-     rootDir: string,
-): { compatible: string[]; skipped: string[] } {
-     const compatible: string[] = []
-     const skipped: string[] = []
-     for (const pkg of packages) {
-          if (packageUsesExportEquals(pkg, rootDir)) {
-               skipped.push(pkg)
-          } else {
-               compatible.push(pkg)
-          }
-     }
-     return { compatible, skipped }
-}
 
 export function parseBarrelExports(filePath: string): Set<string> {
      const names = new Set<string>()

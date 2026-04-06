@@ -1,14 +1,12 @@
 #!/usr/bin/env node
-import { genImport, genPackage, genAppConfig } from './index'
+import { genImport, genAppConfig } from './index'
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { CliArgs, GenAppConfigOptions, GenImportOptions, GenPackageOptions } from './@types'
+import { CliArgs, GenAppConfigOptions, GenImportOptions } from './@types'
 
 function parseArgs(argv: string[]): CliArgs {
     const importOpts: GenImportOptions = {}
-    const packageOpts: GenPackageOptions = {}
     const appConfigOpts: GenAppConfigOptions = {}
-    let runPackages = false
     let runImport = true
     let runAppConfig = false
     const args = argv.slice(2)
@@ -21,23 +19,17 @@ function parseArgs(argv: string[]): CliArgs {
             case '--root':
             case '-r':
                 importOpts.rootDir = next
-                packageOpts.rootDir = next
                 i++
                 break
             case '--src':
             case '-s':
                 importOpts.srcDir = next
-                packageOpts.srcDir = next
                 appConfigOpts.srcDir = next
                 i++
                 break
             case '--out':
             case '-o':
                 importOpts.outFileName = next
-                i++
-                break
-            case '--pkg-out':
-                packageOpts.outFileName = next
                 i++
                 break
             case '--module-pattern':
@@ -59,15 +51,6 @@ function parseArgs(argv: string[]): CliArgs {
                 break
             case '--no-js':
                 importOpts.generateJs = false
-                packageOpts.generateJs = false
-                break
-            case '--packages':
-            case '-p':
-                runPackages = true
-                break
-            case '--packages-only':
-                runPackages = true
-                runImport = false
                 break
             case '--app-config':
                 runAppConfig = true
@@ -79,17 +62,6 @@ function parseArgs(argv: string[]): CliArgs {
             case '--no-auto-update':
                 appConfigOpts.autoUpdate = false
                 break
-            case '--include-dev':
-                packageOpts.includeDev = true
-                break
-            case '--include-pkg':
-                packageOpts.includePackages = [...(packageOpts.includePackages ?? []), next]
-                i++
-                break
-            case '--exclude-pkg':
-                packageOpts.excludePackages = [...(packageOpts.excludePackages ?? []), next]
-                i++
-                break
             case '--help':
             case '-h':
                 printHelp()
@@ -97,7 +69,7 @@ function parseArgs(argv: string[]): CliArgs {
         }
     }
 
-    return { importOpts, packageOpts, appConfigOpts, runPackages, runImport, runAppConfig }
+    return { importOpts, appConfigOpts, runImport, runAppConfig }
 }
 
 function loadConfig(rootDir: string): GenImportOptions {
@@ -125,14 +97,6 @@ Source barrel (gen-import.ts for TS projects, gen-import.js for JS projects):
   --skip <pattern>            Skip files matching pattern (repeatable)
   --pure-reexport <path>      Mark a file as pure re-export to skip (repeatable)
 
-Package barrel (gen-package.d.ts + gen-package.js):
-  -p, --packages              Also generate gen-package.d.ts from package.json deps
-  --packages-only             Only generate the package barrel, skip source barrel
-  --pkg-out <filename>        Package barrel output filename (default: gen-package.d.ts)
-  --include-pkg <name>        Only include this package (repeatable)
-  --exclude-pkg <name>        Exclude this package (repeatable)
-  --include-dev               Also include devDependencies in package barrel
-
 Shared:
   --no-js                     Skip generating .js companion files
   -h, --help                  Show this help
@@ -156,25 +120,19 @@ Output files:
   gen-import.ts        TypeScript source barrel (TS projects — importable by tsx/ts-node)
   gen-import.js        JavaScript runtime barrel (JS projects, or TS with --no-js disabled)
   gen-import.d.ts      Type companion written alongside gen-import.js (JS projects only)
-  gen-package.d.ts     TypeScript declaration barrel for npm packages
-  gen-package.js       JavaScript runtime barrel for npm packages
-  gen-app-config.d.ts  Server config — re-exports both barrels, no per-file imports
+  gen-app-config.d.ts  Server config — re-exports the source barrel, no per-file imports
   gen-app-config.js    JavaScript companion for the server config
   (with --globals: gen-import.ts/.js also registers all exports on Node.js global)
 `)
 }
 
-const { importOpts, packageOpts, appConfigOpts, runPackages, runImport, runAppConfig } =
+const { importOpts, appConfigOpts, runImport, runAppConfig } =
     parseArgs(process.argv)
 const rootDir = resolve(importOpts.rootDir ?? process.cwd())
 const fileOpts = loadConfig(rootDir)
 
 if (runImport) {
     genImport({ ...fileOpts, ...importOpts, rootDir })
-}
-
-if (runPackages) {
-    genPackage({ ...packageOpts, rootDir })
 }
 
 if (runAppConfig) {
