@@ -73,10 +73,13 @@ function parseArgs(argv: string[]): CliArgs {
 }
 
 function loadConfig(rootDir: string): GenImportOptions {
-    const configPath = join(rootDir, 'gen-import.config.js')
-    if (existsSync(configPath)) {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        return require(resolve(configPath)) as GenImportOptions
+    // .cjs is tried first so ESM projects can always provide a CJS config.
+    for (const name of ['gen-import.config.cjs', 'gen-import.config.js']) {
+        const configPath = join(rootDir, name)
+        if (existsSync(configPath)) {
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            return require(resolve(configPath)) as GenImportOptions
+        }
     }
     return {}
 }
