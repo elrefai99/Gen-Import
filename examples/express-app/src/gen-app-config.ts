@@ -5,4 +5,3 @@
  */
 
 export * from './gen-import';
-export * from './gen-package';

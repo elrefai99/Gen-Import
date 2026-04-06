@@ -1,4 +1,6 @@
 import { writeFileSync } from 'node:fs'
+import boxen from 'boxen'
+import chalk from 'chalk'
 import { join, relative, resolve } from 'node:path'
 import { GenImportOptions } from '../@types'
 import { walk, detectModuleType, detectProjectLanguage, toJsPath, analyzeFiles, readPreviousExports, buildDtsOutput, buildJsOutput, buildGlobalDtsOutput, buildGlobalJsOutput, buildGlobalDts } from '../script'
@@ -70,7 +72,6 @@ export function genImport(options: GenImportOptions = {}): void {
                ? buildGlobalDts(infos, dtsName)
                : buildDtsOutput(infos, dtsName)
           writeFileSync(dtsFile, dtsContent, 'utf-8')
-          console.log(`✓  ${relative(rootDir, dtsFile)}`)
      }
 
      // TS projects with explicit generateJs: also write a .js runtime companion
@@ -80,7 +81,6 @@ export function genImport(options: GenImportOptions = {}): void {
                ? buildGlobalJsOutput(infos, outFileName, moduleType)
                : buildJsOutput(infos, outFileName, moduleType)
           writeFileSync(jsFile, jsContent, 'utf-8')
-          console.log(`✓  ${relative(rootDir, jsFile)}`)
      }
 
      const total = infos.reduce(
@@ -92,9 +92,31 @@ export function genImport(options: GenImportOptions = {}): void {
           .flatMap((i) => [...i.types, ...i.values, ...(i.defaultAlias ? [i.defaultAlias] : [])])
           .filter((name) => !prevExports.has(name))
 
-     console.log(`✓  ${relative(rootDir, outFile)}`)
-     console.log(`   ${infos.length} source files · ${total} exports · ${isTs ? 'typescript' : 'javascript'} · module: ${moduleType}${globals ? ' · globals: on' : ''}`)
+     const rows: [string, string][] = [
+          ['Source files',  `${infos.length}`],
+          ['Total exports', `${total}`],
+          ['Language',      isTs ? 'TypeScript' : 'JavaScript'],
+          ['Output file',   relative(rootDir, outFile)],
+          ['Module',        moduleType],
+          ['Globals',       globals ? chalk.green('on') : chalk.gray('off')],
+     ]
+
      if (newExports.length) {
-          console.log(`   +${newExports.length} new: ${newExports.join(', ')}`)
+          rows.push(['New exports', chalk.yellow(`+${newExports.length}: ${newExports.join(', ')}`)])
      }
+
+     const labelWidth = Math.max(...rows.map(([l]) => l.length))
+     const table = rows
+          .map(([label, value]) => `${chalk.cyan(label.padEnd(labelWidth))}  ${value}`)
+          .join('\n')
+
+     console.log(
+          boxen(table, {
+               title: chalk.green.bold(' gen-import '),
+               titleAlignment: 'center',
+               padding: { top: 0, bottom: 0, left: 1, right: 1 },
+               borderColor: 'green',
+               borderStyle: 'round',
+          }),
+     )
 }
