@@ -1,0 +1,94 @@
+version: "2"
+language: "en-US"
+tone_instructions: >
+  Be thorough and direct. Flag real bugs, type-safety gaps, edge cases, and
+  security issues. Skip praise — only comment when there is something to fix
+  or improve.
+
+reviews:
+  profile: "assertive"
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  changed_files_summary: true
+  sequence_diagrams: false
+
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    drafts: false
+    ignore_title_keywords:
+      - "WIP"
+      - "wip"
+      - "DO NOT MERGE"
+      - "skip review"
+
+  path_filters:
+    - "!dist/**"
+    - "!node_modules/**"
+    - "!**/*.lock"
+    - "!**/*.min.js"
+    - "!src/gen-import.ts"
+    - "!src/gen-app-config.ts"
+    - "!src/gen-app-config.d.ts"
+
+  path_instructions:
+    - path: "src/script/index.ts"
+      instructions: |
+        This file contains all shared pure helpers used by core/ modules.
+        Review for:
+        - Correctness of TypeScript AST traversal (ts.Program, TypeChecker, SymbolFlags).
+        - Edge cases in analyzeFiles: files with no exports, re-export-only files,
+          default-only exports, files with both type and value exports of the same name.
+        - CJS lazy getter correctness — each Object.defineProperty getter must not
+          capture a stale closure or cause double-require issues.
+        - ESM export correctness — no duplicate export names across files.
+        - toJsPath regex: verify it handles .d.ts, .ts, and mixed paths correctly.
+        - walk(): confirm it handles symlinks, empty dirs, and non-.ts files safely.
+
+    - path: "src/core/import.ts"
+      instructions: |
+        Core barrel generator. Review for:
+        - Correct deferred ordering: module/route/router files MUST appear after
+          regular files to avoid circular-require in NestJS-style projects.
+        - moduleFilePatterns array matching — ensure all 4 default patterns are tested.
+        - outFile and toJsPath(outFile) are always excluded from the scan (extraSkip).
+        - pureReexports paths are relative to rootDir not srcDir — flag any mismatch.
+        - generateJs flag: .js companion should only be written when flag is true AND
+          project is TypeScript; never for JS projects (they already write .js as main).
+
+    - path: "src/core/app-config.ts"
+      instructions: |
+        App-config aggregator. Review for:
+        - autoUpdate scan must never include outFile, genImportPath (circular).
+        - Appended lines in autoUpdate must not duplicate names already in the barrel.
+        - JS companion regeneration after autoUpdate must stay in sync with .ts barrel.
+        - buildBarrel / buildJsBarrel must only reference files that actually exist
+          (hasGenImport guard).
+
+    - path: "src/cli.ts"
+      instructions: |
+        Thin CLI wrapper. Review for:
+        - All flags correctly forward to the right options struct.
+        - --no-js must set generateJs: false on importOpts only (packageOpts removed).
+        - Config file values must be overridable by CLI flags (CLI wins on conflict).
+        - loadConfig uses require() — flag if the resolved path could allow path
+          traversal outside the project root.
+
+    - path: "src/@types/index.d.ts"
+      instructions: |
+        Shared interfaces. Review for:
+        - moduleFilePattern typed as string | string[] — usages must handle both branches.
+        - No unused fields left over from removed features (e.g. genPackageFile was removed).
+        - CliArgs must exactly match what parseArgs() returns.
+
+    - path: "examples/**"
+      instructions: |
+        Working example project. Verify that generated barrel files (gen-import.ts,
+        gen-app-config.ts) are consistent with the current output format produced by
+        the tool. Flag if examples appear stale or out of sync.
+
+chat:
+  auto_reply: true
