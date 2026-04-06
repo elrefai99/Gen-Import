@@ -26,7 +26,9 @@ export function detectModuleType(rootDir: string): 'esm' | 'cjs' {
 export function detectProjectLanguage(rootDir: string, srcDir: string): 'ts' | 'js' {
      if (existsSync(join(rootDir, 'tsconfig.json'))) return 'ts'
      try {
-          const hasTsFile = walk(srcDir).some((f) => f.endsWith('.ts') || f.endsWith('.tsx'))
+          const hasTsFile = walk(srcDir).some(
+               (f) => (f.endsWith('.ts') || f.endsWith('.tsx')) && !f.endsWith('.d.ts'),
+          )
           if (hasTsFile) return 'ts'
      } catch {
           // srcDir may not exist yet
@@ -256,7 +258,12 @@ export function readPreviousExports(outFile: string): Set<string> {
 export function analyzeFiles(files: string[], rootDir: string, srcDir: string): FileInfo[] {
      const cfgPath = join(rootDir, 'tsconfig.json')
      const cfgFile = ts.readConfigFile(cfgPath, ts.sys.readFile)
-     const { options } = ts.parseJsonConfigFileContent(cfgFile.config, ts.sys, rootDir)
+     const { options } = ts.parseJsonConfigFileContent(cfgFile.config ?? {}, ts.sys, rootDir)
+
+     // When the project has no tsconfig (pure JS), allowJs must be enabled so the
+     // TypeScript compiler can analyse .js source files.
+     const hasJsFiles = files.some((f) => f.endsWith('.js'))
+     if (hasJsFiles && !options.allowJs) options.allowJs = true
 
      const program = ts.createProgram(files, options)
      const checker = program.getTypeChecker()
@@ -339,7 +346,7 @@ export function buildJsOutput(
      moduleType: 'esm' | 'cjs',
 ): string {
      const seen = new Set<string>()
-     const baseName = outFileName.replace(/\.d\.ts$/, '').replace(/\.ts$/, '')
+     const baseName = outFileName.replace(/\.d\.ts$/, '').replace(/\.ts$/, '').replace(/\.js$/, '')
 
      const lines: string[] = [
           '/**',
