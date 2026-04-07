@@ -2,6 +2,7 @@
 import './gen-import'
 
 import express from 'express'
+import { authMiddleware, PORT, userRouter } from './gen-import'
 
 const app: express.Application = express()
 

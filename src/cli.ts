@@ -49,6 +49,12 @@ function parseArgs(argv: string[]): CliArgs {
             case '-g':
                 importOpts.globals = true
                 break
+            case '--strict-cycles':
+                importOpts.strictCycles = true
+                break
+            case '--no-topo-sort':
+                importOpts.noTopoSort = true
+                break
             case '--no-js':
                 importOpts.generateJs = false
                 break
@@ -97,6 +103,8 @@ Source barrel (gen-import.ts for TS projects, gen-import.js for JS projects):
   -o, --out <filename>        Output filename inside src (default: auto-detected)
   -m, --module-pattern <pat>  Module file pattern deferred to end (default: .module.ts)
   -g, --globals               Register all exports on Node.js global (no per-file imports needed)
+  --strict-cycles             Exit with code 1 if circular dependencies are detected (useful in CI)
+  --no-topo-sort              Skip topological sort and use alphabetical order (legacy behaviour)
   --skip <pattern>            Skip files matching pattern (repeatable)
   --pure-reexport <path>      Mark a file as pure re-export to skip (repeatable)
 
@@ -139,8 +147,6 @@ if (runImport) {
 }
 
 if (runAppConfig) {
-    // Merge config-file skipPatterns + pureReexports so auto-update respects the same
-    // exclusions as genImport (e.g. entry points declared in gen-import.config.js).
     const mergedSkip = [
         ...(fileOpts.skipPatterns ?? []),
         ...(importOpts.skipPatterns ?? []),
@@ -158,4 +164,3 @@ if (runAppConfig) {
         generateJs: importOpts.generateJs,
     })
 }
-

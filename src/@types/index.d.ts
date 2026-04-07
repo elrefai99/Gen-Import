@@ -18,13 +18,20 @@ export interface GenImportOptions {
      moduleFilePattern?: string | string[]
      generateJs?: boolean
      globals?: boolean
+     strictCycles?: boolean
+     noTopoSort?: boolean
 }
 
 export interface FileInfo {
      importPath: string
+     absolutePath: string
      types: string[]
      values: string[]
      defaultAlias: string | null
+}
+
+export interface CycleReport {
+     path: string[]
 }
 
 export interface CliArgs {
