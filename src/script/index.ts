@@ -1,6 +1,6 @@
 import ts from 'typescript'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
-import { FileInfo } from '../@types'
+import { CycleReport, FileInfo } from '../@types'
 import { join, relative } from 'node:path'
 
 export function walk(dir: string): string[] {
@@ -255,21 +255,28 @@ export function readPreviousExports(outFile: string): Set<string> {
      return names
 }
 
-export function analyzeFiles(files: string[], rootDir: string, srcDir: string): FileInfo[] {
+export function createTsProgram(files: string[], rootDir: string): ts.Program {
      const cfgPath = join(rootDir, 'tsconfig.json')
      const cfgFile = ts.readConfigFile(cfgPath, ts.sys.readFile)
      const { options } = ts.parseJsonConfigFileContent(cfgFile.config ?? {}, ts.sys, rootDir)
 
-     // When the project has no tsconfig (pure JS), allowJs must be enabled so the
-     // TypeScript compiler can analyse .js source files.
      const hasJsFiles = files.some((f) => f.endsWith('.js'))
      if (hasJsFiles && !options.allowJs) options.allowJs = true
 
-     const program = ts.createProgram(files, options)
-     const checker = program.getTypeChecker()
+     return ts.createProgram(files, options)
+}
+
+export function analyzeFiles(
+     files: string[],
+     rootDir: string,
+     srcDir: string,
+     program?: ts.Program,
+): FileInfo[] {
+     const prog = program ?? createTsProgram(files, rootDir)
+     const checker = prog.getTypeChecker()
 
      return files.flatMap((file): FileInfo[] => {
-          const sf = program.getSourceFile(file)
+          const sf = prog.getSourceFile(file)
           if (!sf) return []
 
           const mod = checker.getSymbolAtLocation(sf)
@@ -305,8 +312,130 @@ export function analyzeFiles(files: string[], rootDir: string, srcDir: string): 
           const lastSegment = rel.split('/').pop()!.replace(/[^a-zA-Z0-9_$]/g, '_')
           const defaultAlias = hasDefault ? lastSegment || null : null
 
-          return [{ importPath: `./${rel}`, types, values, defaultAlias }]
+          return [{ importPath: `./${rel}`, absolutePath: file, types, values, defaultAlias }]
      })
+}
+
+// ─── Dependency Graph ─────────────────────────────────────────────────────────
+
+export type DepGraph = Map<string, Set<string>>
+
+export function buildDepGraph(files: string[], program: ts.Program): DepGraph {
+     const graph: DepGraph = new Map()
+     const fileSet = new Set(files)
+     const compilerOptions = program.getCompilerOptions()
+
+     for (const file of files) {
+          const sf = program.getSourceFile(file)
+          const deps = new Set<string>()
+
+          if (sf) {
+               for (const stmt of sf.statements) {
+                    if (!ts.isImportDeclaration(stmt) && !ts.isExportDeclaration(stmt)) continue
+                    const moduleSpec = stmt.moduleSpecifier
+                    if (!moduleSpec || !ts.isStringLiteral(moduleSpec)) continue
+
+                    const specText = moduleSpec.text
+                    if (!specText.startsWith('.')) continue // skip external packages
+
+                    const resolved = ts.resolveModuleName(specText, file, compilerOptions, ts.sys)
+                    const resolvedFile = resolved.resolvedModule?.resolvedFileName
+                    if (resolvedFile && fileSet.has(resolvedFile)) {
+                         deps.add(resolvedFile)
+                    }
+               }
+          }
+
+          graph.set(file, deps)
+     }
+
+     return graph
+}
+
+export function detectCycles(graph: DepGraph): CycleReport[] {
+     const cycles: CycleReport[] = []
+     const visited = new Set<string>()
+     const onStack = new Set<string>()
+     const stack: string[] = []
+     const reported = new Set<string>()
+
+     function dfs(node: string): void {
+          visited.add(node)
+          onStack.add(node)
+          stack.push(node)
+
+          for (const neighbor of graph.get(node) ?? []) {
+               if (!visited.has(neighbor)) {
+                    dfs(neighbor)
+               } else if (onStack.has(neighbor)) {
+                    const cycleStart = stack.indexOf(neighbor)
+                    const cyclePath = [...stack.slice(cycleStart), neighbor]
+                    const key = cyclePath.join('>')
+                    if (!reported.has(key)) {
+                         reported.add(key)
+                         cycles.push({ path: cyclePath })
+                    }
+               }
+          }
+
+          stack.pop()
+          onStack.delete(node)
+     }
+
+     for (const node of graph.keys()) {
+          if (!visited.has(node)) dfs(node)
+     }
+
+     return cycles
+}
+
+export function topoSort(files: string[], graph: DepGraph): string[] {
+     const fileSet = new Set(files)
+
+     // Reversed graph: dep → Set<files that import dep>
+     // In-degree in reversed graph = number of internal deps a file has
+     const reversedGraph = new Map<string, Set<string>>()
+     const inDegree = new Map<string, number>()
+
+     for (const file of files) {
+          inDegree.set(file, 0)
+          reversedGraph.set(file, new Set())
+     }
+
+     for (const [file, deps] of graph) {
+          if (!fileSet.has(file)) continue
+          for (const dep of deps) {
+               if (!fileSet.has(dep)) continue
+               reversedGraph.get(dep)!.add(file)
+               inDegree.set(file, (inDegree.get(file) ?? 0) + 1)
+          }
+     }
+
+     // Files with 0 internal deps can be initialized first
+     const queue: string[] = []
+     for (const [file, deg] of inDegree) {
+          if (deg === 0) queue.push(file)
+     }
+
+     const sorted: string[] = []
+     while (queue.length) {
+          const node = queue.shift()!
+          sorted.push(node)
+          for (const dependent of reversedGraph.get(node) ?? []) {
+               const newDeg = (inDegree.get(dependent) ?? 0) - 1
+               inDegree.set(dependent, newDeg)
+               if (newDeg === 0) queue.push(dependent)
+          }
+     }
+
+     // Cycles prevent full sort — append remaining files (best-effort fallback)
+     if (sorted.length < files.length) {
+          const sortedSet = new Set(sorted)
+          const remaining = files.filter((f) => !sortedSet.has(f))
+          return [...sorted, ...remaining]
+     }
+
+     return sorted
 }
 
 export function buildDtsOutput(infos: FileInfo[], outFileName: string): string {

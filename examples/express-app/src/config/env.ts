@@ -1,6 +1,5 @@
 // dotenv has proper named exports — import config through gen-package barrel.
-import { config } from '../gen-package'
-
+import { config } from "dotenv"
 config()  // load .env into process.env
 
 export const PORT = process.env.PORT ?? '3000'
