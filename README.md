@@ -1,4 +1,4 @@
-<h1 align="center">gen-import</h1>
+<h1 align="center">Gen-Import</h1>
 
 <p align="center">
   Automatically generate TypeScript/JavaScript barrel files using the TypeScript compiler API.<br/>
