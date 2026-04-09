@@ -1,19 +1,21 @@
-<h1 align="center">
+<div align="center">
   <img src="https://lh3.googleusercontent.com/d/1YpSkag4qd0TVzgaWSscSgsVneClHPOfl" width="200" alt="Gen-Import" />
-  Gen-Import
-</h1>
 
-<p align="center">
+  # Gen-Import
+
+<p>
   Automatically generate TypeScript/JavaScript barrel files using the TypeScript compiler API.<br/>
   Cycle detection · topological sort · globals mode · rich console output.
 </p>
 
-<p align="center">
+<p>
   <a href="https://www.npmjs.com/package/gen-import"><img src="https://img.shields.io/npm/v/gen-import" alt="npm version" /></a>
   <a href="https://www.npmjs.com/package/gen-import"><img src="https://img.shields.io/npm/dm/gen-import" alt="npm downloads" /></a>
   <img src="https://img.shields.io/node/v/gen-import" alt="node version" />
   <img src="https://img.shields.io/badge/license-MIT-green" alt="license" />
 </p>
+
+</div>
 
 ---
 
