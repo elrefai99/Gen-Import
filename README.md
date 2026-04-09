@@ -1,5 +1,7 @@
-<img src="https://lh3.googleusercontent.com/d/1YpSkag4qd0TVzgaWSscSgsVneClHPOfl" width="200" alt="Gen-Import" />
-<h1 align="center">Gen-Import</h1>
+<h1 align="center">
+  <img src="https://lh3.googleusercontent.com/d/1YpSkag4qd0TVzgaWSscSgsVneClHPOfl" width="200" alt="Gen-Import" />
+  Gen-Import
+</h1>
 
 <p align="center">
   Automatically generate TypeScript/JavaScript barrel files using the TypeScript compiler API.<br/>
