@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 import { genImport, genAppConfig } from './index'
+import { genExportMap } from './core/export-map'
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { CliArgs, GenAppConfigOptions, GenImportOptions } from './@types'
+import type { CliArgs, ExportMapFormat, ExportMapOptions, GenAppConfigOptions, GenImportOptions } from './@types'
 
 function parseArgs(argv: string[]): CliArgs {
     const importOpts: GenImportOptions = {}
     const appConfigOpts: GenAppConfigOptions = {}
+    const exportMapOpts: ExportMapOptions = {}
     let runImport = true
     let runAppConfig = false
+    let runExportMap = false
     const args = argv.slice(2)
 
     for (let i = 0; i < args.length; i++) {
@@ -72,10 +75,24 @@ function parseArgs(argv: string[]): CliArgs {
             case '-h':
                 printHelp()
                 process.exit(0)
+            case '--map':
+                runExportMap = true
+                break
+            case '--map-format':
+                exportMapOpts.format = next as ExportMapFormat
+                i++
+                break
+            case '--map-out':
+                exportMapOpts.outFile = next
+                i++
+                break
+            case '--no-imports':
+                exportMapOpts.includeImports = false
+                break
         }
     }
 
-    return { importOpts, appConfigOpts, runImport, runAppConfig }
+    return { importOpts, appConfigOpts, exportMapOpts, runImport, runAppConfig, runExportMap }
 }
 
 function loadConfig(rootDir: string): GenImportOptions {
@@ -134,10 +151,16 @@ Output files:
   gen-app-config.d.ts  Server config — re-exports the source barrel, no per-file imports
   gen-app-config.js    JavaScript companion for the server config
   (with --globals: gen-import.ts/.js also registers all exports on Node.js global)
+
+Export map (visualization):
+  --map                       Generate export map visualization
+  --map-format <fmt>          Output format: console (default), json, mermaid
+  --map-out <file>            Write map to file instead of stdout
+  --no-imports                Skip import relationship analysis (exports only)
 `)
 }
 
-const { importOpts, appConfigOpts, runImport, runAppConfig } =
+const { importOpts, appConfigOpts, exportMapOpts, runImport, runAppConfig, runExportMap } =
     parseArgs(process.argv)
 const rootDir = resolve(importOpts.rootDir ?? process.cwd())
 const fileOpts = loadConfig(rootDir)
@@ -162,5 +185,17 @@ if (runAppConfig) {
         pureReexports: mergedPure.length ? mergedPure : undefined,
         moduleFilePattern: importOpts.moduleFilePattern ?? fileOpts.moduleFilePattern,
         generateJs: importOpts.generateJs,
+    })
+}
+
+if (runExportMap) {
+    genExportMap({
+        ...exportMapOpts,
+        rootDir,
+        skipPatterns: importOpts.skipPatterns,
+        pureReexports: importOpts.pureReexports,
+        moduleFilePattern: typeof importOpts.moduleFilePattern === 'string'
+            ? importOpts.moduleFilePattern
+            : undefined,
     })
 }
