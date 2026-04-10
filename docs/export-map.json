@@ -1,0 +1,325 @@
+{
+  "totalFiles": 7,
+  "totalExports": 62,
+  "totalImportEdges": 6,
+  "files": [
+    {
+      "file": "src/core/app-config.ts",
+      "exports": [
+        {
+          "name": "genAppConfig",
+          "kind": "value"
+        }
+      ],
+      "importedBy": [],
+      "importsFrom": [
+        "src/script/index.ts",
+        "src/index.ts"
+      ]
+    },
+    {
+      "file": "src/core/export-map.ts",
+      "exports": [
+        {
+          "name": "genExportMap",
+          "kind": "value"
+        }
+      ],
+      "importedBy": [
+        "src/cli.ts"
+      ],
+      "importsFrom": [
+        "src/utils/index.ts",
+        "src/script/index.ts"
+      ]
+    },
+    {
+      "file": "src/core/import.ts",
+      "exports": [
+        {
+          "name": "genImport",
+          "kind": "value"
+        }
+      ],
+      "importedBy": [],
+      "importsFrom": [
+        "src/script/index.ts",
+        "src/index.ts"
+      ]
+    },
+    {
+      "file": "src/gen-import.ts",
+      "exports": [
+        {
+          "name": "genAppConfig",
+          "kind": "value"
+        },
+        {
+          "name": "genExportMap",
+          "kind": "value"
+        },
+        {
+          "name": "genImport",
+          "kind": "value"
+        },
+        {
+          "name": "DEFAULT_SKIP_PATTERNS",
+          "kind": "value"
+        },
+        {
+          "name": "DEFAULT_MODULE_FILE_PATTERN",
+          "kind": "value"
+        },
+        {
+          "name": "DEFAULT_MODULE_FILE_PATTERNS",
+          "kind": "value"
+        },
+        {
+          "name": "buildDepGraph",
+          "kind": "value"
+        },
+        {
+          "name": "detectCycles",
+          "kind": "value"
+        },
+        {
+          "name": "topoSort",
+          "kind": "value"
+        },
+        {
+          "name": "createTsProgram",
+          "kind": "value"
+        },
+        {
+          "name": "DepGraph",
+          "kind": "value"
+        },
+        {
+          "name": "CycleReport",
+          "kind": "value"
+        },
+        {
+          "name": "walk",
+          "kind": "value"
+        },
+        {
+          "name": "detectModuleType",
+          "kind": "value"
+        },
+        {
+          "name": "detectProjectLanguage",
+          "kind": "value"
+        },
+        {
+          "name": "toJsPath",
+          "kind": "value"
+        },
+        {
+          "name": "buildGlobalDtsOutput",
+          "kind": "value"
+        },
+        {
+          "name": "buildGlobalJsOutput",
+          "kind": "value"
+        },
+        {
+          "name": "buildGlobalDts",
+          "kind": "value"
+        },
+        {
+          "name": "readPreviousExports",
+          "kind": "value"
+        },
+        {
+          "name": "analyzeFiles",
+          "kind": "value"
+        },
+        {
+          "name": "buildDtsOutput",
+          "kind": "value"
+        },
+        {
+          "name": "buildJsOutput",
+          "kind": "value"
+        },
+        {
+          "name": "parseBarrelExports",
+          "kind": "value"
+        }
+      ],
+      "importedBy": [],
+      "importsFrom": []
+    },
+    {
+      "file": "src/index.ts",
+      "exports": [
+        {
+          "name": "DEFAULT_SKIP_PATTERNS",
+          "kind": "value"
+        },
+        {
+          "name": "DEFAULT_MODULE_FILE_PATTERN",
+          "kind": "value"
+        },
+        {
+          "name": "DEFAULT_MODULE_FILE_PATTERNS",
+          "kind": "value"
+        },
+        {
+          "name": "buildDepGraph",
+          "kind": "value"
+        },
+        {
+          "name": "detectCycles",
+          "kind": "value"
+        },
+        {
+          "name": "topoSort",
+          "kind": "value"
+        },
+        {
+          "name": "createTsProgram",
+          "kind": "value"
+        },
+        {
+          "name": "DepGraph",
+          "kind": "value"
+        },
+        {
+          "name": "CycleReport",
+          "kind": "value"
+        },
+        {
+          "name": "genExportMap",
+          "kind": "value"
+        },
+        {
+          "name": "genAppConfig",
+          "kind": "value"
+        },
+        {
+          "name": "genImport",
+          "kind": "value"
+        }
+      ],
+      "importedBy": [
+        "src/cli.ts",
+        "src/core/app-config.ts",
+        "src/core/import.ts"
+      ],
+      "importsFrom": []
+    },
+    {
+      "file": "src/script/index.ts",
+      "exports": [
+        {
+          "name": "walk",
+          "kind": "value"
+        },
+        {
+          "name": "detectModuleType",
+          "kind": "value"
+        },
+        {
+          "name": "detectProjectLanguage",
+          "kind": "value"
+        },
+        {
+          "name": "toJsPath",
+          "kind": "value"
+        },
+        {
+          "name": "buildGlobalDtsOutput",
+          "kind": "value"
+        },
+        {
+          "name": "buildGlobalJsOutput",
+          "kind": "value"
+        },
+        {
+          "name": "buildGlobalDts",
+          "kind": "value"
+        },
+        {
+          "name": "readPreviousExports",
+          "kind": "value"
+        },
+        {
+          "name": "createTsProgram",
+          "kind": "value"
+        },
+        {
+          "name": "analyzeFiles",
+          "kind": "value"
+        },
+        {
+          "name": "buildDepGraph",
+          "kind": "value"
+        },
+        {
+          "name": "detectCycles",
+          "kind": "value"
+        },
+        {
+          "name": "topoSort",
+          "kind": "value"
+        },
+        {
+          "name": "buildDtsOutput",
+          "kind": "value"
+        },
+        {
+          "name": "buildJsOutput",
+          "kind": "value"
+        },
+        {
+          "name": "parseBarrelExports",
+          "kind": "value"
+        },
+        {
+          "name": "DepGraph",
+          "kind": "type"
+        }
+      ],
+      "importedBy": [
+        "src/core/app-config.ts",
+        "src/core/export-map.ts",
+        "src/core/import.ts"
+      ],
+      "importsFrom": []
+    },
+    {
+      "file": "src/utils/index.ts",
+      "exports": [
+        {
+          "name": "walk",
+          "kind": "value"
+        },
+        {
+          "name": "detectModuleType",
+          "kind": "value"
+        },
+        {
+          "name": "detectProjectLanguage",
+          "kind": "value"
+        },
+        {
+          "name": "toJsPath",
+          "kind": "value"
+        },
+        {
+          "name": "DEFAULT_SKIP_PATTERNS",
+          "kind": "value"
+        },
+        {
+          "name": "DEFAULT_MODULE_FILE_PATTERN",
+          "kind": "value"
+        }
+      ],
+      "importedBy": [
+        "src/core/export-map.ts"
+      ],
+      "importsFrom": []
+    }
+  ]
+}
