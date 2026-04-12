@@ -3,7 +3,7 @@ import boxen from 'boxen'
 import chalk from 'chalk'
 import { join, relative, resolve } from 'node:path'
 import { GenImportOptions } from '../@types'
-import { walk, detectModuleType, detectProjectLanguage, toJsPath, analyzeFiles, createTsProgram, buildDepGraph, detectCycles, topoSort, readPreviousExports, buildDtsOutput, buildJsOutput, buildGlobalDtsOutput, buildGlobalJsOutput, buildGlobalDts } from '../script'
+import { walk, detectModuleType, detectProjectLanguage, toJsPath, analyzeFiles, createTsProgram, buildDepGraph, detectCycles, topoSort, readPreviousExports, buildDtsOutput, buildLazyDtsOutput, buildJsOutput, buildGlobalDtsOutput, buildLazyGlobalDtsOutput, buildGlobalJsOutput, buildGlobalDts } from '../script'
 import { DEFAULT_MODULE_FILE_PATTERNS, DEFAULT_SKIP_PATTERNS } from '..'
 
 export function genImport(options: GenImportOptions = {}): void {
@@ -21,6 +21,7 @@ export function genImport(options: GenImportOptions = {}): void {
      const globals = options.globals ?? false
      const strictCycles = options.strictCycles ?? false
      const noTopoSort = options.noTopoSort ?? false
+     const lazy = options.lazy ?? (moduleType === 'cjs')
      const moduleFilePatterns = options.moduleFilePattern
           ? (Array.isArray(options.moduleFilePattern) ? options.moduleFilePattern : [options.moduleFilePattern])
           : DEFAULT_MODULE_FILE_PATTERNS
@@ -55,7 +56,6 @@ export function genImport(options: GenImportOptions = {}): void {
      const program = createTsProgram(orderedFiles, rootDir)
      const infos = analyzeFiles(orderedFiles, rootDir, srcDir, program)
 
-     // ─── Cycle detection ──────────────────────────────────────────────────────
      const graph = buildDepGraph(orderedFiles, program)
      const cycles = detectCycles(graph)
 
@@ -73,7 +73,6 @@ export function genImport(options: GenImportOptions = {}): void {
           }
      }
 
-     // ─── Topological sort ─────────────────────────────────────────────────────
      let sortedInfos = infos
      if (!noTopoSort) {
           const sortedPaths = topoSort(orderedFiles, graph)
@@ -88,9 +87,16 @@ export function genImport(options: GenImportOptions = {}): void {
      const prevExports = readPreviousExports(outFile)
 
      if (isTs) {
-          const content = globals
-               ? buildGlobalDtsOutput(sortedInfos, outFileName)
-               : buildDtsOutput(sortedInfos, outFileName)
+          let content: string
+          if (globals) {
+               content = lazy
+                    ? buildLazyGlobalDtsOutput(sortedInfos, outFileName)
+                    : buildGlobalDtsOutput(sortedInfos, outFileName)
+          } else {
+               content = lazy
+                    ? buildLazyDtsOutput(sortedInfos, outFileName)
+                    : buildDtsOutput(sortedInfos, outFileName)
+          }
           writeFileSync(outFile, content, 'utf-8')
      } else {
           const content = globals
@@ -132,6 +138,7 @@ export function genImport(options: GenImportOptions = {}): void {
           ['Output file', relative(rootDir, outFile)],
           ['Module', moduleType],
           ['Globals', globals ? chalk.green('on') : chalk.gray('off')],
+          ['Lazy', lazy ? chalk.green('on') : chalk.gray('off')],
           ['Topo sort', noTopoSort ? chalk.gray('off') : chalk.green('on')],
           ['Cycles', cycles.length === 0 ? chalk.green('none') : chalk.red(`${cycles.length} ⚠`)],
      ]
@@ -155,7 +162,6 @@ export function genImport(options: GenImportOptions = {}): void {
           }),
      )
 
-     // ─── Import / Export graph ─────────────────────────────────────────────────
      const outName = relative(rootDir, outFile)
      const graphLines: string[] = []
 

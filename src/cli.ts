@@ -61,6 +61,12 @@ function parseArgs(argv: string[]): CliArgs {
             case '--no-js':
                 importOpts.generateJs = false
                 break
+            case '--lazy':
+                importOpts.lazy = true
+                break
+            case '--no-lazy':
+                importOpts.lazy = false
+                break
             case '--app-config':
                 runAppConfig = true
                 break
@@ -122,6 +128,8 @@ Source barrel (gen-import.ts for TS projects, gen-import.js for JS projects):
   -g, --globals               Register all exports on Node.js global (no per-file imports needed)
   --strict-cycles             Exit with code 1 if circular dependencies are detected (useful in CI)
   --no-topo-sort              Skip topological sort and use alphabetical order (legacy behaviour)
+  --lazy                      Force lazy re-exports to prevent circular-dep errors (default for CJS)
+  --no-lazy                   Force static re-exports (default for ESM)
   --skip <pattern>            Skip files matching pattern (repeatable)
   --pure-reexport <path>      Mark a file as pure re-export to skip (repeatable)
 

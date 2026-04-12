@@ -20,6 +20,7 @@ export interface GenImportOptions {
      globals?: boolean
      strictCycles?: boolean
      noTopoSort?: boolean
+     lazy?: boolean
 }
 
 export interface FileInfo {
@@ -53,13 +54,9 @@ export interface ExportEntry {
 }
 
 export interface ExportMapEntry {
-     /** Relative file path from rootDir */
      file: string
-     /** All symbols exported by this file */
      exports: ExportEntry[]
-     /** Relative paths of files that import from this file */
      importedBy: string[]
-     /** Relative paths of files this file imports from (internal only) */
      importsFrom: string[]
 }
 

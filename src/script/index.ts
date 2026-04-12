@@ -41,12 +41,91 @@ export function toJsPath(filePath: string): string {
      return filePath.replace(/\.d\.ts$/, '.js').replace(/(?<!\.d)\.ts$/, '.js')
 }
 
+export function buildLazyGlobalDtsOutput(infos: FileInfo[], outFileName: string): string {
+     const seenTypes = new Set<string>()
+     const seenValues = new Set<string>()
 
-/**
- * Like buildDtsOutput but also registers value exports on Node.js global.
- * Import the generated file once in your app entry point — all exports become
- * available everywhere without per-file imports.
- */
+     const lines: string[] = [
+          '// @ts-nocheck — auto-generated barrel with lazy CJS re-exports',
+          '/**',
+          ` * ${outFileName} — AUTO-GENERATED, do not edit manually.`,
+          ' * Regenerate: npx gen-import --globals',
+          ' *',
+          " * Import once in your entry point: import './gen-import'",
+          ' * After that, all exports are available as globals — no per-file imports needed.',
+          ' *',
+          ' * Value exports use lazy getters to prevent circular-dependency',
+          ' * errors when source files import from this barrel (CJS).',
+          ' */',
+          '',
+     ]
+
+     const typeExportLines: string[] = []
+     const valueExports: { name: string; importPath: string; key: string }[] = []
+
+     for (const { importPath, types, values, defaultAlias } of infos) {
+          const t = types.filter((n) => !seenTypes.has(n) && !seenValues.has(n))
+          const v = values.filter((n) => !seenValues.has(n) && !seenTypes.has(n))
+          t.forEach((n) => seenTypes.add(n))
+          v.forEach((n) => seenValues.add(n))
+
+          const hasDefault = defaultAlias && !seenValues.has(defaultAlias)
+          if (hasDefault) seenValues.add(defaultAlias!)
+
+          if (t.length) typeExportLines.push(`export type { ${t.join(', ')} } from '${importPath}';`)
+
+          for (const name of v) {
+               valueExports.push({ name, importPath, key: name })
+          }
+          if (hasDefault) {
+               valueExports.push({ name: defaultAlias!, importPath, key: 'default' })
+          }
+     }
+
+     // Type exports
+     lines.push(...typeExportLines)
+     if (typeExportLines.length && valueExports.length) lines.push('')
+
+     // Value type declarations (compile-time only)
+     for (const { name, importPath, key } of valueExports) {
+          if (key === 'default') {
+               lines.push(`export declare const ${name}: typeof import('${importPath}').default;`)
+          } else {
+               lines.push(`export declare const ${name}: typeof import('${importPath}').${name};`)
+          }
+     }
+
+     if (valueExports.length) {
+          lines.push('')
+
+          // Lazy getters for exports
+          for (const { name, importPath, key } of valueExports) {
+               lines.push(`Object.defineProperty(exports, '${name}', { get() { return require('${importPath}').${key} }, enumerable: true, configurable: true });`)
+          }
+
+          // Register on global using defineProperties for lazy access
+          lines.push('')
+          lines.push('Object.defineProperties(global, {')
+          for (const { name } of valueExports) {
+               lines.push(`  ${name}: { get() { return exports.${name} }, enumerable: true, configurable: true },`)
+          }
+          lines.push('});')
+          lines.push('')
+          lines.push('declare global {')
+          for (const { name, importPath, key } of valueExports) {
+               if (key === 'default') {
+                    lines.push(`  var ${name}: typeof import('${importPath}').default`)
+               } else {
+                    lines.push(`  var ${name}: typeof import('${importPath}').${name}`)
+               }
+          }
+          lines.push('}')
+     }
+
+     lines.push('')
+     return lines.join('\n')
+}
+
 export function buildGlobalDtsOutput(infos: FileInfo[], outFileName: string): string {
      const seenTypes = new Set<string>()
      const seenValues = new Set<string>()
@@ -62,10 +141,6 @@ export function buildGlobalDtsOutput(infos: FileInfo[], outFileName: string): st
           '',
      ]
 
-     // Collect per-file import groups.
-     // Values are imported with a _ prefix alias to break the circular type reference:
-     //   `var foo: typeof foo` inside declare global resolves to itself (TS2502).
-     //   `var foo: typeof _foo` resolves to the local import — no circularity.
      const typeReexports: string[] = []
      const valueImports: string[] = []
      const allValueNames: string[] = []   // original names (for export / Object.assign)
@@ -118,9 +193,6 @@ export function buildGlobalDtsOutput(infos: FileInfo[], outFileName: string): st
      return lines.join('\n')
 }
 
-/**
- * Like buildJsOutput but also registers value exports on Node.js global.
- */
 export function buildGlobalJsOutput(
      infos: FileInfo[],
      outFileName: string,
@@ -190,10 +262,6 @@ export function buildGlobalJsOutput(
      return lines.join('\n')
 }
 
-/**
- * Companion .d.ts for JS projects using --globals.
- * Adds declare global { var ... } after the normal re-exports.
- */
 export function buildGlobalDts(infos: FileInfo[], outFileName: string): string {
      const seen = new Set<string>()
 
@@ -250,6 +318,12 @@ export function readPreviousExports(outFile: string): Set<string> {
                     const name = part.trim().replace(/^.*\s+as\s+/, '')
                     if (name) names.add(name)
                }
+               continue
+          }
+          // Lazy barrel format: export declare const <name>: ...
+          const declareMatch = line.match(/^export\s+declare\s+const\s+(\w+)\s*:/)
+          if (declareMatch) {
+               names.add(declareMatch[1])
           }
      }
      return names
@@ -315,8 +389,6 @@ export function analyzeFiles(
           return [{ importPath: `./${rel}`, absolutePath: file, types, values, defaultAlias }]
      })
 }
-
-// ─── Dependency Graph ─────────────────────────────────────────────────────────
 
 export type DepGraph = Map<string, Set<string>>
 
@@ -392,8 +464,6 @@ export function detectCycles(graph: DepGraph): CycleReport[] {
 export function topoSort(files: string[], graph: DepGraph): string[] {
      const fileSet = new Set(files)
 
-     // Reversed graph: dep → Set<files that import dep>
-     // In-degree in reversed graph = number of internal deps a file has
      const reversedGraph = new Map<string, Set<string>>()
      const inDegree = new Map<string, number>()
 
@@ -436,6 +506,80 @@ export function topoSort(files: string[], graph: DepGraph): string[] {
      }
 
      return sorted
+}
+
+export function buildLazyDtsOutput(infos: FileInfo[], outFileName: string): string {
+     const seenTypes = new Set<string>()
+     const seenValues = new Set<string>()
+
+     const lines: string[] = [
+          '// @ts-nocheck — auto-generated barrel with lazy CJS re-exports',
+          '/**',
+          ` * ${outFileName} — AUTO-GENERATED, do not edit manually.`,
+          ' * Regenerate: npx gen-import',
+          ' *',
+          ' * Value exports use lazy getters to prevent circular-dependency',
+          ' * errors when source files import from this barrel (CJS).',
+          ' */',
+          '',
+     ]
+
+     // Phase 1: collect type exports, value export metadata
+     const typeExportLines: string[] = []
+     const valueModules: { importPath: string; names: string[]; defaultAlias: string | null }[] = []
+
+     for (const { importPath, types, values, defaultAlias } of infos) {
+          const t = types.filter((n) => !seenTypes.has(n) && !seenValues.has(n))
+          const v = values.filter((n) => !seenValues.has(n) && !seenTypes.has(n))
+          t.forEach((n) => seenTypes.add(n))
+          v.forEach((n) => seenValues.add(n))
+
+          const hasDefault = defaultAlias && !seenValues.has(defaultAlias)
+          if (hasDefault) seenValues.add(defaultAlias!)
+
+          if (t.length) {
+               typeExportLines.push(`export type { ${t.join(', ')} } from '${importPath}';`)
+          }
+
+          if (v.length || hasDefault) {
+               valueModules.push({
+                    importPath,
+                    names: v,
+                    defaultAlias: hasDefault ? defaultAlias! : null,
+               })
+          }
+     }
+
+     // Phase 2: emit type exports
+     lines.push(...typeExportLines)
+     if (typeExportLines.length && valueModules.length) lines.push('')
+
+     // Phase 3: emit value type declarations (compile-time only)
+     for (const { importPath, names, defaultAlias } of valueModules) {
+          for (const name of names) {
+               lines.push(`export declare const ${name}: typeof import('${importPath}').${name};`)
+          }
+          if (defaultAlias) {
+               lines.push(`export declare const ${defaultAlias}: typeof import('${importPath}').default;`)
+          }
+     }
+
+     if (valueModules.length) lines.push('')
+
+     // Phase 4: emit runtime lazy getters
+     if (valueModules.length) {
+          for (const { importPath, names, defaultAlias } of valueModules) {
+               for (const name of names) {
+                    lines.push(`Object.defineProperty(exports, '${name}', { get() { return require('${importPath}').${name} }, enumerable: true, configurable: true });`)
+               }
+               if (defaultAlias) {
+                    lines.push(`Object.defineProperty(exports, '${defaultAlias}', { get() { return require('${importPath}').default }, enumerable: true, configurable: true });`)
+               }
+          }
+     }
+
+     lines.push('')
+     return lines.join('\n')
 }
 
 export function buildDtsOutput(infos: FileInfo[], outFileName: string): string {
@@ -532,6 +676,12 @@ export function parseBarrelExports(filePath: string): Set<string> {
                     const name = part.trim().replace(/^.*\s+as\s+/, '').trim()
                     if (name) names.add(name)
                }
+               continue
+          }
+          // Lazy barrel format: export declare const <name>: ...
+          const declareMatch = line.match(/^export\s+declare\s+const\s+(\w+)\s*:/)
+          if (declareMatch) {
+               names.add(declareMatch[1])
           }
      }
      return names
