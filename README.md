@@ -457,3 +457,5 @@ See `examples/express-app/` for a complete working Express project.
 ## License
 
 MIT
+---
+• <a href="https://elrefai.me/projects">Projects</a> •
