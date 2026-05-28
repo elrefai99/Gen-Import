@@ -1,5 +1,7 @@
 node_modules
 src
+AGENTS.md
+.cursor
 .claude
 CLAUDE.md
 examples
