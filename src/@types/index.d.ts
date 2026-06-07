@@ -21,6 +21,7 @@ export interface GenImportOptions {
      strictCycles?: boolean
      noTopoSort?: boolean
      lazy?: boolean
+     watch?: boolean
 }
 
 export interface FileInfo {

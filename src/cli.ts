@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { genImport, genAppConfig } from './index'
 import { genExportMap } from './core/export-map'
+import { watchSrc } from './core/watch'
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { CliArgs, ExportMapFormat, ExportMapOptions, GenAppConfigOptions, GenImportOptions } from './@types'
@@ -67,6 +68,10 @@ function parseArgs(argv: string[]): CliArgs {
             case '--no-lazy':
                 importOpts.lazy = false
                 break
+            case '--watch':
+            case '-w':
+                importOpts.watch = true
+                break
             case '--app-config':
                 runAppConfig = true
                 break
@@ -132,6 +137,7 @@ Source barrel (gen-import.ts for TS projects, gen-import.js for JS projects):
   --no-lazy                   Force static re-exports (default for ESM)
   --skip <pattern>            Skip files matching pattern (repeatable)
   --pure-reexport <path>      Mark a file as pure re-export to skip (repeatable)
+  -w, --watch                 Watch src and auto-regenerate barrels on every change
 
 Shared:
   --no-js                     Skip generating .js companion files
@@ -173,37 +179,51 @@ const { importOpts, appConfigOpts, exportMapOpts, runImport, runAppConfig, runEx
 const rootDir = resolve(importOpts.rootDir ?? process.cwd())
 const fileOpts = loadConfig(rootDir)
 
-if (runImport) {
-    genImport({ ...fileOpts, ...importOpts, rootDir })
+function runAll(): void {
+    if (runImport) {
+        genImport({ ...fileOpts, ...importOpts, rootDir })
+    }
+
+    if (runAppConfig) {
+        const mergedSkip = [
+            ...(fileOpts.skipPatterns ?? []),
+            ...(importOpts.skipPatterns ?? []),
+        ]
+        const mergedPure = [
+            ...(fileOpts.pureReexports ?? []),
+            ...(importOpts.pureReexports ?? []),
+        ]
+        genAppConfig({
+            ...appConfigOpts,
+            rootDir,
+            skipPatterns: mergedSkip.length ? mergedSkip : undefined,
+            pureReexports: mergedPure.length ? mergedPure : undefined,
+            moduleFilePattern: importOpts.moduleFilePattern ?? fileOpts.moduleFilePattern,
+            generateJs: importOpts.generateJs,
+        })
+    }
+
+    if (runExportMap) {
+        genExportMap({
+            ...exportMapOpts,
+            rootDir,
+            skipPatterns: importOpts.skipPatterns,
+            pureReexports: importOpts.pureReexports,
+            moduleFilePattern: typeof importOpts.moduleFilePattern === 'string'
+                ? importOpts.moduleFilePattern
+                : undefined,
+        })
+    }
 }
 
-if (runAppConfig) {
-    const mergedSkip = [
-        ...(fileOpts.skipPatterns ?? []),
-        ...(importOpts.skipPatterns ?? []),
-    ]
-    const mergedPure = [
-        ...(fileOpts.pureReexports ?? []),
-        ...(importOpts.pureReexports ?? []),
-    ]
-    genAppConfig({
-        ...appConfigOpts,
-        rootDir,
-        skipPatterns: mergedSkip.length ? mergedSkip : undefined,
-        pureReexports: mergedPure.length ? mergedPure : undefined,
-        moduleFilePattern: importOpts.moduleFilePattern ?? fileOpts.moduleFilePattern,
-        generateJs: importOpts.generateJs,
-    })
-}
+runAll()
 
-if (runExportMap) {
-    genExportMap({
-        ...exportMapOpts,
-        rootDir,
-        skipPatterns: importOpts.skipPatterns,
-        pureReexports: importOpts.pureReexports,
-        moduleFilePattern: typeof importOpts.moduleFilePattern === 'string'
-            ? importOpts.moduleFilePattern
-            : undefined,
+if (importOpts.watch ?? fileOpts.watch) {
+    const srcDir = resolve(rootDir, importOpts.srcDir ?? fileOpts.srcDir ?? 'src')
+    watchSrc({
+        srcDir,
+        // Skip generated barrels so writing output never re-triggers the watch.
+        ignore: ['gen-import', 'gen-app-config', 'gen-package'],
+        onChange: runAll,
     })
 }

@@ -38,6 +38,7 @@ src/
     import.ts         — genImport()
     packages.ts       — genPackage()  (programmatic API only — not wired into the CLI)
     app-config.ts     — genAppConfig()
+    watch.ts          — watchSrc()  (recursive fs.watch loop behind the --watch flag)
   script/
     index.ts          — all shared helpers (walk, detectModuleType, detectProjectLanguage,
                          toJsPath, analyzeFiles, createTsProgram, buildDepGraph, detectCycles,

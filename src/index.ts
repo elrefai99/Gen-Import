@@ -7,3 +7,5 @@ export { buildDepGraph, detectCycles, topoSort, createTsProgram, buildLazyDtsOut
 export type { DepGraph } from './script'
 export type { CycleReport } from './@types'
 export { genExportMap } from './core/export-map'
+export { watchSrc } from './core/watch'
+export type { WatchOptions } from './core/watch'
