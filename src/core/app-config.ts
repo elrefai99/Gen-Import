@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
-import { walk, detectModuleType, detectProjectLanguage, toJsPath, analyzeFiles, buildJsOutput, parseBarrelExports } from '../script'
+import { walk, detectModuleType, detectProjectLanguage, toJsPath, analyzeFiles, buildJsOutput, parseBarrelExports, createTsProgram, buildDepGraph, topoSort, buildDtsOutput, buildLazyDtsOutput, buildGlobalDtsOutput, buildLazyGlobalDtsOutput } from '../script'
 import { DEFAULT_MODULE_FILE_PATTERNS, DEFAULT_SKIP_PATTERNS } from '..'
 import { GenAppConfigOptions } from '../@types'
 
@@ -21,7 +21,10 @@ export function genAppConfig(options: GenAppConfigOptions = {}): void {
      const pureReexports = new Set(options.pureReexports ?? [])
      const skipPatterns = [...DEFAULT_SKIP_PATTERNS, ...(options.skipPatterns ?? [])]
 
-     if (autoUpdate && existsSync(genImportPath)) {
+     // Auto-update is a full regeneration (not append-only) so exports removed
+     // from source files are pruned instead of left behind as stale re-exports.
+     // TS projects only — for JS projects the barrel scan has no .ts sources.
+     if (autoUpdate && isTs && existsSync(genImportPath)) {
           const knownExports = parseBarrelExports(genImportPath)
 
           function shouldSkip(file: string): boolean {
@@ -36,42 +39,47 @@ export function genAppConfig(options: GenAppConfigOptions = {}): void {
           const allFiles = walk(srcDir).filter((f) => !shouldSkip(f)).sort()
           const regularFiles = allFiles.filter((f) => !moduleFilePatterns.some((p) => f.includes(p)))
           const moduleFiles = allFiles.filter((f) => moduleFilePatterns.some((p) => f.includes(p)))
-          const allInfos = analyzeFiles([...regularFiles, ...moduleFiles], rootDir, srcDir)
+          const orderedFiles = [...regularFiles, ...moduleFiles]
 
-          const appendLines: string[] = []
-          let newCount = 0
+          const program = createTsProgram(orderedFiles, rootDir)
+          const allInfos = analyzeFiles(orderedFiles, rootDir, srcDir, program)
 
-          for (const { importPath, types, values, defaultAlias } of allInfos) {
-               const newTypes = types.filter((n) => !knownExports.has(n))
-               const newValues = values.filter((n) => !knownExports.has(n))
-               const newDefault =
-                    defaultAlias && !knownExports.has(defaultAlias) ? defaultAlias : null
+          // Mirror genImport: topo sort keeps init order cycle-safe
+          const graph = buildDepGraph(orderedFiles, program)
+          const sortedPaths = topoSort(orderedFiles, graph)
+          const pathIndex = new Map(sortedPaths.map((p, i) => [p, i]))
+          const sortedInfos = [...allInfos].sort((a, b) => {
+               const ai = pathIndex.get(a.absolutePath) ?? Infinity
+               const bi = pathIndex.get(b.absolutePath) ?? Infinity
+               return ai - bi
+          })
 
-               if (newTypes.length) {
-                    appendLines.push(`export type { ${newTypes.join(', ')} } from '${importPath}';`)
-                    newCount += newTypes.length
-               }
-               if (newValues.length) {
-                    appendLines.push(`export { ${newValues.join(', ')} } from '${importPath}';`)
-                    newCount += newValues.length
-               }
-               if (newDefault) {
-                    appendLines.push(
-                         `export { default as ${newDefault} } from '${importPath}';`,
-                    )
-                    newCount++
-               }
-          }
+          const currentNames = new Set(
+               sortedInfos.flatMap((i) => [...i.types, ...i.values, ...(i.defaultAlias ? [i.defaultAlias] : [])]),
+          )
+          const added = [...currentNames].filter((n) => !knownExports.has(n))
+          const removed = [...knownExports].filter((n) => n !== '*' && !currentNames.has(n))
 
-          if (appendLines.length) {
-               const existing = readFileSync(genImportPath, 'utf-8').trimEnd()
-               writeFileSync(
-                    genImportPath,
-                    existing + '\n' + appendLines.join('\n') + '\n',
-                    'utf-8',
-               )
+          if (added.length || removed.length) {
+               // Preserve the existing barrel's format (lazy / globals) across regeneration
+               const existing = readFileSync(genImportPath, 'utf-8')
+               const wasLazy = existing.includes("Object.defineProperty(exports, '")
+               const wasGlobals = existing.includes('declare global') || existing.includes('Object.assign(global')
+               const content = wasGlobals
+                    ? (wasLazy
+                         ? buildLazyGlobalDtsOutput(sortedInfos, genImportFileName)
+                         : buildGlobalDtsOutput(sortedInfos, genImportFileName))
+                    : (wasLazy
+                         ? buildLazyDtsOutput(sortedInfos, genImportFileName)
+                         : buildDtsOutput(sortedInfos, genImportFileName))
+               writeFileSync(genImportPath, content, 'utf-8')
+
+               const parts = [
+                    added.length ? `+${added.length} new` : null,
+                    removed.length ? `-${removed.length} stale` : null,
+               ].filter(Boolean).join(', ')
                console.log(
-                    `✓  ${relative(rootDir, genImportPath)} (auto-updated: +${newCount} new exports)`,
+                    `✓  ${relative(rootDir, genImportPath)} (auto-updated: ${parts})`,
                )
 
                if (generateJs) {
@@ -79,7 +87,7 @@ export function genAppConfig(options: GenAppConfigOptions = {}): void {
                     if (existsSync(jsFile)) {
                          writeFileSync(
                               jsFile,
-                              buildJsOutput(allInfos, genImportFileName, moduleType),
+                              buildJsOutput(sortedInfos, genImportFileName, moduleType),
                               'utf-8',
                          )
                          console.log(`✓  ${relative(rootDir, jsFile)} (auto-updated)`)

@@ -22,6 +22,7 @@ export declare const buildGlobalDts: typeof import('./script').buildGlobalDts;
 export declare const readPreviousExports: typeof import('./script').readPreviousExports;
 export declare const createTsProgram: typeof import('./script').createTsProgram;
 export declare const analyzeFiles: typeof import('./script').analyzeFiles;
+export declare const findNameCollisions: typeof import('./script').findNameCollisions;
 export declare const buildDepGraph: typeof import('./script').buildDepGraph;
 export declare const detectCycles: typeof import('./script').detectCycles;
 export declare const topoSort: typeof import('./script').topoSort;
@@ -49,6 +50,7 @@ Object.defineProperty(exports, 'buildGlobalDts', { get() { return require('./scr
 Object.defineProperty(exports, 'readPreviousExports', { get() { return require('./script').readPreviousExports }, enumerable: true, configurable: true });
 Object.defineProperty(exports, 'createTsProgram', { get() { return require('./script').createTsProgram }, enumerable: true, configurable: true });
 Object.defineProperty(exports, 'analyzeFiles', { get() { return require('./script').analyzeFiles }, enumerable: true, configurable: true });
+Object.defineProperty(exports, 'findNameCollisions', { get() { return require('./script').findNameCollisions }, enumerable: true, configurable: true });
 Object.defineProperty(exports, 'buildDepGraph', { get() { return require('./script').buildDepGraph }, enumerable: true, configurable: true });
 Object.defineProperty(exports, 'detectCycles', { get() { return require('./script').detectCycles }, enumerable: true, configurable: true });
 Object.defineProperty(exports, 'topoSort', { get() { return require('./script').topoSort }, enumerable: true, configurable: true });

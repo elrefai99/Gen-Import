@@ -63,8 +63,9 @@ src/
 | `toJsPath(filePath)` | Converts `.d.ts` / `.ts` path → `.js` |
 | `createTsProgram(files, rootDir)` | Creates a `ts.Program` reused across analysis and graph building |
 | `analyzeFiles(files, rootDir, srcDir, program?)` | Uses `TypeChecker.getExportsOfModule` to classify each export as type-only (`Interface \| TypeAlias` without `Value` flag) or value — returns `FileInfo[]` |
-| `buildDepGraph(files, program)` | Builds an adjacency map of internal `import`/`export` dependencies (skips external packages) |
+| `buildDepGraph(files, program)` | Builds an adjacency map of internal dependencies — top-level `import`/`export` plus dynamic `import()` and `require()` calls anywhere in the file (skips external packages) |
 | `detectCycles(graph)` | DFS-based cycle detection returning `CycleReport[]` |
+| `findNameCollisions(infos)` | Returns names exported by more than one file (barrel keeps first, drops rest — callers warn) |
 | `topoSort(files, graph)` | Kahn's algorithm; appends unresolved files (cycle fallback) |
 | `buildDtsOutput` / `buildJsOutput` | Render barrel file content for source barrels |
 | `buildGlobalDtsOutput` / `buildGlobalJsOutput` / `buildGlobalDts` | `--globals` variants that also register exports on Node.js `global` |

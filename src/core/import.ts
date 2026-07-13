@@ -3,7 +3,7 @@ import boxen from 'boxen'
 import chalk from 'chalk'
 import { join, relative, resolve } from 'node:path'
 import { GenImportOptions } from '../@types'
-import { walk, detectModuleType, detectProjectLanguage, toJsPath, analyzeFiles, createTsProgram, buildDepGraph, detectCycles, topoSort, readPreviousExports, buildDtsOutput, buildLazyDtsOutput, buildJsOutput, buildGlobalDtsOutput, buildLazyGlobalDtsOutput, buildGlobalJsOutput, buildGlobalDts } from '../script'
+import { walk, detectModuleType, detectProjectLanguage, toJsPath, analyzeFiles, createTsProgram, buildDepGraph, detectCycles, topoSort, readPreviousExports, buildDtsOutput, buildLazyDtsOutput, buildJsOutput, buildGlobalDtsOutput, buildLazyGlobalDtsOutput, buildGlobalJsOutput, buildGlobalDts, findNameCollisions } from '../script'
 import { DEFAULT_MODULE_FILE_PATTERNS, DEFAULT_SKIP_PATTERNS } from '..'
 
 export function genImport(options: GenImportOptions = {}): void {
@@ -21,7 +21,14 @@ export function genImport(options: GenImportOptions = {}): void {
      const globals = options.globals ?? false
      const strictCycles = options.strictCycles ?? false
      const noTopoSort = options.noTopoSort ?? false
-     const lazy = options.lazy ?? (moduleType === 'cjs')
+     let lazy = options.lazy ?? (moduleType === 'cjs')
+     // Lazy barrels emit CJS require() getters — they cannot work in an ESM
+     // runtime ("type": "module"). Fall back to static re-exports (ESM live
+     // bindings already tolerate most cycles).
+     if (lazy && moduleType === 'esm' && isTs) {
+          console.warn(chalk.yellow('⚠  --lazy emits CJS require() getters, incompatible with "type": "module". Falling back to static re-exports.'))
+          lazy = false
+     }
      const moduleFilePatterns = options.moduleFilePattern
           ? (Array.isArray(options.moduleFilePattern) ? options.moduleFilePattern : [options.moduleFilePattern])
           : DEFAULT_MODULE_FILE_PATTERNS
@@ -84,6 +91,18 @@ export function genImport(options: GenImportOptions = {}): void {
           })
      }
 
+     // Same-name exports from different files: builders keep the first and
+     // silently drop the rest — surface that instead of hiding it.
+     const collisions = findNameCollisions(sortedInfos)
+     if (collisions.size > 0) {
+          const collisionLines = [...collisions].map(([name, paths]) => {
+               const [winner, ...dropped] = paths
+               return `  ${chalk.yellow.bold(name)}: kept from ${chalk.cyan(winner)}, dropped from ${dropped.map((p) => chalk.red(p)).join(', ')}`
+          })
+          const header = chalk.yellow.bold(`⚠  ${collisions.size} export name collision${collisions.size === 1 ? '' : 's'} — only the first occurrence is re-exported:`)
+          console.warn('\n' + header + '\n' + collisionLines.join('\n') + '\n')
+     }
+
      const prevExports = readPreviousExports(outFile)
 
      if (isTs) {
@@ -127,9 +146,9 @@ export function genImport(options: GenImportOptions = {}): void {
           0,
      )
 
-     const newExports = sortedInfos
-          .flatMap((i) => [...i.types, ...i.values, ...(i.defaultAlias ? [i.defaultAlias] : [])])
-          .filter((name) => !prevExports.has(name))
+     const newExports = [...new Set(
+          sortedInfos.flatMap((i) => [...i.types, ...i.values, ...(i.defaultAlias ? [i.defaultAlias] : [])]),
+     )].filter((name) => !prevExports.has(name))
 
      const rows: [string, string][] = [
           ['Source files', `${sortedInfos.length}`],
@@ -141,6 +160,7 @@ export function genImport(options: GenImportOptions = {}): void {
           ['Lazy', lazy ? chalk.green('on') : chalk.gray('off')],
           ['Topo sort', noTopoSort ? chalk.gray('off') : chalk.green('on')],
           ['Cycles', cycles.length === 0 ? chalk.green('none') : chalk.red(`${cycles.length} ⚠`)],
+          ['Collisions', collisions.size === 0 ? chalk.green('none') : chalk.yellow(`${collisions.size} ⚠`)],
      ]
 
      if (newExports.length) {

@@ -390,6 +390,27 @@ export function analyzeFiles(
      })
 }
 
+/**
+ * Detect export names declared by more than one file.
+ * Barrel builders dedupe first-wins, so every later occurrence is silently
+ * dropped from the barrel — callers should surface these as warnings.
+ */
+export function findNameCollisions(infos: FileInfo[]): Map<string, string[]> {
+     const owners = new Map<string, string[]>()
+     for (const { importPath, types, values, defaultAlias } of infos) {
+          for (const name of [...types, ...values, ...(defaultAlias ? [defaultAlias] : [])]) {
+               const list = owners.get(name)
+               if (list) list.push(importPath)
+               else owners.set(name, [importPath])
+          }
+     }
+     const collisions = new Map<string, string[]>()
+     for (const [name, paths] of owners) {
+          if (paths.length > 1) collisions.set(name, paths)
+     }
+     return collisions
+}
+
 export type DepGraph = Map<string, Set<string>>
 
 export function buildDepGraph(files: string[], program: ts.Program): DepGraph {
@@ -401,21 +422,33 @@ export function buildDepGraph(files: string[], program: ts.Program): DepGraph {
           const sf = program.getSourceFile(file)
           const deps = new Set<string>()
 
-          if (sf) {
-               for (const stmt of sf.statements) {
-                    if (!ts.isImportDeclaration(stmt) && !ts.isExportDeclaration(stmt)) continue
-                    const moduleSpec = stmt.moduleSpecifier
-                    if (!moduleSpec || !ts.isStringLiteral(moduleSpec)) continue
-
-                    const specText = moduleSpec.text
-                    if (!specText.startsWith('.')) continue // skip external packages
-
-                    const resolved = ts.resolveModuleName(specText, file, compilerOptions, ts.sys)
-                    const resolvedFile = resolved.resolvedModule?.resolvedFileName
-                    if (resolvedFile && fileSet.has(resolvedFile)) {
-                         deps.add(resolvedFile)
-                    }
+          const addDep = (specText: string): void => {
+               if (!specText.startsWith('.')) return // skip external packages
+               const resolved = ts.resolveModuleName(specText, file, compilerOptions, ts.sys)
+               const resolvedFile = resolved.resolvedModule?.resolvedFileName
+               if (resolvedFile && fileSet.has(resolvedFile)) {
+                    deps.add(resolvedFile)
                }
+          }
+
+          if (sf) {
+               // Full AST walk — catches top-level import/export plus dynamic
+               // import() expressions and require() calls anywhere in the file.
+               const visit = (node: ts.Node): void => {
+                    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
+                         const moduleSpec = node.moduleSpecifier
+                         if (moduleSpec && ts.isStringLiteral(moduleSpec)) addDep(moduleSpec.text)
+                    } else if (ts.isCallExpression(node)) {
+                         const arg = node.arguments[0]
+                         const isDynamicImport = node.expression.kind === ts.SyntaxKind.ImportKeyword
+                         const isRequire = ts.isIdentifier(node.expression) && node.expression.text === 'require'
+                         if ((isDynamicImport || isRequire) && arg && ts.isStringLiteralLike(arg)) {
+                              addDep(arg.text)
+                         }
+                    }
+                    ts.forEachChild(node, visit)
+               }
+               visit(sf)
           }
 
           graph.set(file, deps)
