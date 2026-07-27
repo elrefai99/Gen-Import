@@ -1,8 +1,349 @@
 {
-  "totalFiles": 7,
-  "totalExports": 62,
-  "totalImportEdges": 6,
+  "totalFiles": 15,
+  "totalExports": 303,
+  "totalImportEdges": 18,
   "files": [
+    {
+      "file": "src/analysis/barrel.ts",
+      "exports": [
+        {
+          "name": "buildRuntimeGraph",
+          "kind": "value"
+        },
+        {
+          "name": "analyzeBarrel",
+          "kind": "value"
+        },
+        {
+          "name": "analyzeBarrelGraph",
+          "kind": "value"
+        },
+        {
+          "name": "selectSafeExports",
+          "kind": "value"
+        },
+        {
+          "name": "describeEagerEdge",
+          "kind": "value"
+        },
+        {
+          "name": "BarrelAnalysisOptions",
+          "kind": "type"
+        },
+        {
+          "name": "BarrelAnalysisResult",
+          "kind": "type"
+        },
+        {
+          "name": "SafeExportSelection",
+          "kind": "type"
+        },
+        {
+          "name": "SafeExportOptions",
+          "kind": "type"
+        }
+      ],
+      "importedBy": [
+        "src/core/import.ts"
+      ],
+      "importsFrom": [
+        "src/analysis/graph.ts",
+        "src/analysis/scc.ts"
+      ]
+    },
+    {
+      "file": "src/analysis/diagnostics.ts",
+      "exports": [
+        {
+          "name": "explainVia",
+          "kind": "value"
+        },
+        {
+          "name": "collectCycleDiagnostics",
+          "kind": "value"
+        },
+        {
+          "name": "collectBarrelDiagnostics",
+          "kind": "value"
+        },
+        {
+          "name": "countBySeverity",
+          "kind": "value"
+        },
+        {
+          "name": "formatDiagnostics",
+          "kind": "value"
+        },
+        {
+          "name": "SEVERITY_BY_CODE",
+          "kind": "value"
+        }
+      ],
+      "importedBy": [
+        "src/core/import.ts"
+      ],
+      "importsFrom": [
+        "src/analysis/graph.ts",
+        "src/analysis/scc.ts"
+      ]
+    },
+    {
+      "file": "src/analysis/graph.ts",
+      "exports": [
+        {
+          "name": "createCanonicalizer",
+          "kind": "value"
+        },
+        {
+          "name": "buildModuleGraph",
+          "kind": "value"
+        },
+        {
+          "name": "contractBarrel",
+          "kind": "value"
+        },
+        {
+          "name": "withBarrelExports",
+          "kind": "value"
+        },
+        {
+          "name": "consumersOf",
+          "kind": "value"
+        },
+        {
+          "name": "BuildModuleGraphOptions",
+          "kind": "type"
+        },
+        {
+          "name": "INIT_EDGE_KINDS",
+          "kind": "value"
+        }
+      ],
+      "importedBy": [
+        "src/analysis/barrel.ts",
+        "src/analysis/diagnostics.ts",
+        "src/analysis/scc.ts",
+        "src/core/import.ts",
+        "src/script/index.ts"
+      ],
+      "importsFrom": [
+        "src/analysis/scan.ts"
+      ]
+    },
+    {
+      "file": "src/analysis/index.ts",
+      "exports": [
+        {
+          "name": "scanFile",
+          "kind": "value"
+        },
+        {
+          "name": "classifyReference",
+          "kind": "value"
+        },
+        {
+          "name": "isEager",
+          "kind": "value"
+        },
+        {
+          "name": "strongerKind",
+          "kind": "value"
+        },
+        {
+          "name": "strongerVia",
+          "kind": "value"
+        },
+        {
+          "name": "ScanContext",
+          "kind": "value"
+        },
+        {
+          "name": "buildModuleGraph",
+          "kind": "value"
+        },
+        {
+          "name": "withBarrelExports",
+          "kind": "value"
+        },
+        {
+          "name": "contractBarrel",
+          "kind": "value"
+        },
+        {
+          "name": "consumersOf",
+          "kind": "value"
+        },
+        {
+          "name": "createCanonicalizer",
+          "kind": "value"
+        },
+        {
+          "name": "INIT_EDGE_KINDS",
+          "kind": "value"
+        },
+        {
+          "name": "BuildModuleGraphOptions",
+          "kind": "value"
+        },
+        {
+          "name": "tarjanScc",
+          "kind": "value"
+        },
+        {
+          "name": "topoOrder",
+          "kind": "value"
+        },
+        {
+          "name": "cyclicSccs",
+          "kind": "value"
+        },
+        {
+          "name": "shortestCycle",
+          "kind": "value"
+        },
+        {
+          "name": "cycleEdges",
+          "kind": "value"
+        },
+        {
+          "name": "condensation",
+          "kind": "value"
+        },
+        {
+          "name": "analyzeBarrel",
+          "kind": "value"
+        },
+        {
+          "name": "analyzeBarrelGraph",
+          "kind": "value"
+        },
+        {
+          "name": "buildRuntimeGraph",
+          "kind": "value"
+        },
+        {
+          "name": "selectSafeExports",
+          "kind": "value"
+        },
+        {
+          "name": "describeEagerEdge",
+          "kind": "value"
+        },
+        {
+          "name": "SafeExportSelection",
+          "kind": "value"
+        },
+        {
+          "name": "SafeExportOptions",
+          "kind": "value"
+        },
+        {
+          "name": "BarrelAnalysisOptions",
+          "kind": "value"
+        },
+        {
+          "name": "BarrelAnalysisResult",
+          "kind": "value"
+        },
+        {
+          "name": "collectCycleDiagnostics",
+          "kind": "value"
+        },
+        {
+          "name": "collectBarrelDiagnostics",
+          "kind": "value"
+        },
+        {
+          "name": "formatDiagnostics",
+          "kind": "value"
+        },
+        {
+          "name": "countBySeverity",
+          "kind": "value"
+        },
+        {
+          "name": "explainVia",
+          "kind": "value"
+        },
+        {
+          "name": "SEVERITY_BY_CODE",
+          "kind": "value"
+        }
+      ],
+      "importedBy": [],
+      "importsFrom": []
+    },
+    {
+      "file": "src/analysis/scan.ts",
+      "exports": [
+        {
+          "name": "isEager",
+          "kind": "value"
+        },
+        {
+          "name": "strongerVia",
+          "kind": "value"
+        },
+        {
+          "name": "classifyReference",
+          "kind": "value"
+        },
+        {
+          "name": "strongerKind",
+          "kind": "value"
+        },
+        {
+          "name": "scanFile",
+          "kind": "value"
+        },
+        {
+          "name": "ScanContext",
+          "kind": "type"
+        }
+      ],
+      "importedBy": [
+        "src/analysis/graph.ts"
+      ],
+      "importsFrom": []
+    },
+    {
+      "file": "src/analysis/scc.ts",
+      "exports": [
+        {
+          "name": "tarjanScc",
+          "kind": "value"
+        },
+        {
+          "name": "topoOrder",
+          "kind": "value"
+        },
+        {
+          "name": "cyclicSccs",
+          "kind": "value"
+        },
+        {
+          "name": "shortestCycle",
+          "kind": "value"
+        },
+        {
+          "name": "cycleEdges",
+          "kind": "value"
+        },
+        {
+          "name": "condensation",
+          "kind": "value"
+        }
+      ],
+      "importedBy": [
+        "src/analysis/barrel.ts",
+        "src/analysis/diagnostics.ts",
+        "src/core/import.ts",
+        "src/script/index.ts"
+      ],
+      "importsFrom": [
+        "src/analysis/graph.ts"
+      ]
+    },
     {
       "file": "src/core/app-config.ts",
       "exports": [
@@ -44,50 +385,55 @@
       "importedBy": [],
       "importsFrom": [
         "src/script/index.ts",
+        "src/analysis/graph.ts",
+        "src/analysis/scc.ts",
+        "src/analysis/barrel.ts",
+        "src/analysis/diagnostics.ts",
         "src/index.ts"
       ]
     },
     {
-      "file": "src/gen-import.ts",
+      "file": "src/core/watch.ts",
       "exports": [
         {
-          "name": "genAppConfig",
+          "name": "watchSrc",
           "kind": "value"
         },
         {
-          "name": "genExportMap",
+          "name": "WatchOptions",
+          "kind": "type"
+        }
+      ],
+      "importedBy": [
+        "src/cli.ts"
+      ],
+      "importsFrom": []
+    },
+    {
+      "file": "src/gen-app-config.ts",
+      "exports": [
+        {
+          "name": "ScanContext",
           "kind": "value"
         },
         {
-          "name": "genImport",
+          "name": "BuildModuleGraphOptions",
           "kind": "value"
         },
         {
-          "name": "DEFAULT_SKIP_PATTERNS",
+          "name": "BarrelAnalysisOptions",
           "kind": "value"
         },
         {
-          "name": "DEFAULT_MODULE_FILE_PATTERN",
+          "name": "BarrelAnalysisResult",
           "kind": "value"
         },
         {
-          "name": "DEFAULT_MODULE_FILE_PATTERNS",
+          "name": "SafeExportSelection",
           "kind": "value"
         },
         {
-          "name": "buildDepGraph",
-          "kind": "value"
-        },
-        {
-          "name": "detectCycles",
-          "kind": "value"
-        },
-        {
-          "name": "topoSort",
-          "kind": "value"
-        },
-        {
-          "name": "createTsProgram",
+          "name": "SafeExportOptions",
           "kind": "value"
         },
         {
@@ -95,7 +441,119 @@
           "kind": "value"
         },
         {
-          "name": "CycleReport",
+          "name": "WatchOptions",
+          "kind": "value"
+        },
+        {
+          "name": "isEager",
+          "kind": "value"
+        },
+        {
+          "name": "strongerVia",
+          "kind": "value"
+        },
+        {
+          "name": "classifyReference",
+          "kind": "value"
+        },
+        {
+          "name": "strongerKind",
+          "kind": "value"
+        },
+        {
+          "name": "scanFile",
+          "kind": "value"
+        },
+        {
+          "name": "createCanonicalizer",
+          "kind": "value"
+        },
+        {
+          "name": "buildModuleGraph",
+          "kind": "value"
+        },
+        {
+          "name": "contractBarrel",
+          "kind": "value"
+        },
+        {
+          "name": "withBarrelExports",
+          "kind": "value"
+        },
+        {
+          "name": "consumersOf",
+          "kind": "value"
+        },
+        {
+          "name": "INIT_EDGE_KINDS",
+          "kind": "value"
+        },
+        {
+          "name": "tarjanScc",
+          "kind": "value"
+        },
+        {
+          "name": "topoOrder",
+          "kind": "value"
+        },
+        {
+          "name": "cyclicSccs",
+          "kind": "value"
+        },
+        {
+          "name": "shortestCycle",
+          "kind": "value"
+        },
+        {
+          "name": "cycleEdges",
+          "kind": "value"
+        },
+        {
+          "name": "condensation",
+          "kind": "value"
+        },
+        {
+          "name": "buildRuntimeGraph",
+          "kind": "value"
+        },
+        {
+          "name": "analyzeBarrel",
+          "kind": "value"
+        },
+        {
+          "name": "analyzeBarrelGraph",
+          "kind": "value"
+        },
+        {
+          "name": "selectSafeExports",
+          "kind": "value"
+        },
+        {
+          "name": "describeEagerEdge",
+          "kind": "value"
+        },
+        {
+          "name": "explainVia",
+          "kind": "value"
+        },
+        {
+          "name": "collectCycleDiagnostics",
+          "kind": "value"
+        },
+        {
+          "name": "collectBarrelDiagnostics",
+          "kind": "value"
+        },
+        {
+          "name": "countBySeverity",
+          "kind": "value"
+        },
+        {
+          "name": "formatDiagnostics",
+          "kind": "value"
+        },
+        {
+          "name": "SEVERITY_BY_CODE",
           "kind": "value"
         },
         {
@@ -115,6 +573,10 @@
           "kind": "value"
         },
         {
+          "name": "buildLazyGlobalDtsOutput",
+          "kind": "value"
+        },
+        {
           "name": "buildGlobalDtsOutput",
           "kind": "value"
         },
@@ -131,7 +593,31 @@
           "kind": "value"
         },
         {
+          "name": "createTsProgram",
+          "kind": "value"
+        },
+        {
           "name": "analyzeFiles",
+          "kind": "value"
+        },
+        {
+          "name": "findNameCollisions",
+          "kind": "value"
+        },
+        {
+          "name": "buildDepGraph",
+          "kind": "value"
+        },
+        {
+          "name": "detectCycles",
+          "kind": "value"
+        },
+        {
+          "name": "topoSort",
+          "kind": "value"
+        },
+        {
+          "name": "buildLazyDtsOutput",
           "kind": "value"
         },
         {
@@ -144,6 +630,393 @@
         },
         {
           "name": "parseBarrelExports",
+          "kind": "value"
+        },
+        {
+          "name": "DEFAULT_SKIP_PATTERNS",
+          "kind": "value"
+        },
+        {
+          "name": "DEFAULT_MODULE_FILE_PATTERN",
+          "kind": "value"
+        },
+        {
+          "name": "genExportMap",
+          "kind": "value"
+        },
+        {
+          "name": "watchSrc",
+          "kind": "value"
+        },
+        {
+          "name": "genAppConfig",
+          "kind": "value"
+        },
+        {
+          "name": "genImport",
+          "kind": "value"
+        },
+        {
+          "name": "DEFAULT_MODULE_FILE_PATTERNS",
+          "kind": "value"
+        },
+        {
+          "name": "CycleReport",
+          "kind": "value"
+        },
+        {
+          "name": "Edge",
+          "kind": "value"
+        },
+        {
+          "name": "EdgeKind",
+          "kind": "value"
+        },
+        {
+          "name": "EagerVia",
+          "kind": "value"
+        },
+        {
+          "name": "ModuleGraph",
+          "kind": "value"
+        },
+        {
+          "name": "Scc",
+          "kind": "value"
+        },
+        {
+          "name": "SccResult",
+          "kind": "value"
+        },
+        {
+          "name": "BarrelAnalysis",
+          "kind": "value"
+        },
+        {
+          "name": "BarrelSafety",
+          "kind": "value"
+        },
+        {
+          "name": "Diagnostic",
+          "kind": "value"
+        },
+        {
+          "name": "DiagnosticCode",
+          "kind": "value"
+        },
+        {
+          "name": "DiagnosticSeverity",
+          "kind": "value"
+        },
+        {
+          "name": "StrictMode",
+          "kind": "value"
+        }
+      ],
+      "importedBy": [],
+      "importsFrom": []
+    },
+    {
+      "file": "src/gen-import.ts",
+      "exports": [
+        {
+          "name": "ScanContext",
+          "kind": "value"
+        },
+        {
+          "name": "BuildModuleGraphOptions",
+          "kind": "value"
+        },
+        {
+          "name": "BarrelAnalysisOptions",
+          "kind": "value"
+        },
+        {
+          "name": "BarrelAnalysisResult",
+          "kind": "value"
+        },
+        {
+          "name": "SafeExportSelection",
+          "kind": "value"
+        },
+        {
+          "name": "SafeExportOptions",
+          "kind": "value"
+        },
+        {
+          "name": "DepGraph",
+          "kind": "value"
+        },
+        {
+          "name": "WatchOptions",
+          "kind": "value"
+        },
+        {
+          "name": "isEager",
+          "kind": "value"
+        },
+        {
+          "name": "strongerVia",
+          "kind": "value"
+        },
+        {
+          "name": "classifyReference",
+          "kind": "value"
+        },
+        {
+          "name": "strongerKind",
+          "kind": "value"
+        },
+        {
+          "name": "scanFile",
+          "kind": "value"
+        },
+        {
+          "name": "createCanonicalizer",
+          "kind": "value"
+        },
+        {
+          "name": "buildModuleGraph",
+          "kind": "value"
+        },
+        {
+          "name": "contractBarrel",
+          "kind": "value"
+        },
+        {
+          "name": "withBarrelExports",
+          "kind": "value"
+        },
+        {
+          "name": "consumersOf",
+          "kind": "value"
+        },
+        {
+          "name": "INIT_EDGE_KINDS",
+          "kind": "value"
+        },
+        {
+          "name": "tarjanScc",
+          "kind": "value"
+        },
+        {
+          "name": "topoOrder",
+          "kind": "value"
+        },
+        {
+          "name": "cyclicSccs",
+          "kind": "value"
+        },
+        {
+          "name": "shortestCycle",
+          "kind": "value"
+        },
+        {
+          "name": "cycleEdges",
+          "kind": "value"
+        },
+        {
+          "name": "condensation",
+          "kind": "value"
+        },
+        {
+          "name": "buildRuntimeGraph",
+          "kind": "value"
+        },
+        {
+          "name": "analyzeBarrel",
+          "kind": "value"
+        },
+        {
+          "name": "analyzeBarrelGraph",
+          "kind": "value"
+        },
+        {
+          "name": "selectSafeExports",
+          "kind": "value"
+        },
+        {
+          "name": "describeEagerEdge",
+          "kind": "value"
+        },
+        {
+          "name": "explainVia",
+          "kind": "value"
+        },
+        {
+          "name": "collectCycleDiagnostics",
+          "kind": "value"
+        },
+        {
+          "name": "collectBarrelDiagnostics",
+          "kind": "value"
+        },
+        {
+          "name": "countBySeverity",
+          "kind": "value"
+        },
+        {
+          "name": "formatDiagnostics",
+          "kind": "value"
+        },
+        {
+          "name": "SEVERITY_BY_CODE",
+          "kind": "value"
+        },
+        {
+          "name": "walk",
+          "kind": "value"
+        },
+        {
+          "name": "detectModuleType",
+          "kind": "value"
+        },
+        {
+          "name": "detectProjectLanguage",
+          "kind": "value"
+        },
+        {
+          "name": "toJsPath",
+          "kind": "value"
+        },
+        {
+          "name": "buildLazyGlobalDtsOutput",
+          "kind": "value"
+        },
+        {
+          "name": "buildGlobalDtsOutput",
+          "kind": "value"
+        },
+        {
+          "name": "buildGlobalJsOutput",
+          "kind": "value"
+        },
+        {
+          "name": "buildGlobalDts",
+          "kind": "value"
+        },
+        {
+          "name": "readPreviousExports",
+          "kind": "value"
+        },
+        {
+          "name": "createTsProgram",
+          "kind": "value"
+        },
+        {
+          "name": "analyzeFiles",
+          "kind": "value"
+        },
+        {
+          "name": "findNameCollisions",
+          "kind": "value"
+        },
+        {
+          "name": "buildDepGraph",
+          "kind": "value"
+        },
+        {
+          "name": "detectCycles",
+          "kind": "value"
+        },
+        {
+          "name": "topoSort",
+          "kind": "value"
+        },
+        {
+          "name": "buildLazyDtsOutput",
+          "kind": "value"
+        },
+        {
+          "name": "buildDtsOutput",
+          "kind": "value"
+        },
+        {
+          "name": "buildJsOutput",
+          "kind": "value"
+        },
+        {
+          "name": "parseBarrelExports",
+          "kind": "value"
+        },
+        {
+          "name": "DEFAULT_SKIP_PATTERNS",
+          "kind": "value"
+        },
+        {
+          "name": "DEFAULT_MODULE_FILE_PATTERN",
+          "kind": "value"
+        },
+        {
+          "name": "genExportMap",
+          "kind": "value"
+        },
+        {
+          "name": "watchSrc",
+          "kind": "value"
+        },
+        {
+          "name": "genAppConfig",
+          "kind": "value"
+        },
+        {
+          "name": "genImport",
+          "kind": "value"
+        },
+        {
+          "name": "DEFAULT_MODULE_FILE_PATTERNS",
+          "kind": "value"
+        },
+        {
+          "name": "CycleReport",
+          "kind": "value"
+        },
+        {
+          "name": "Edge",
+          "kind": "value"
+        },
+        {
+          "name": "EdgeKind",
+          "kind": "value"
+        },
+        {
+          "name": "EagerVia",
+          "kind": "value"
+        },
+        {
+          "name": "ModuleGraph",
+          "kind": "value"
+        },
+        {
+          "name": "Scc",
+          "kind": "value"
+        },
+        {
+          "name": "SccResult",
+          "kind": "value"
+        },
+        {
+          "name": "BarrelAnalysis",
+          "kind": "value"
+        },
+        {
+          "name": "BarrelSafety",
+          "kind": "value"
+        },
+        {
+          "name": "Diagnostic",
+          "kind": "value"
+        },
+        {
+          "name": "DiagnosticCode",
+          "kind": "value"
+        },
+        {
+          "name": "DiagnosticSeverity",
+          "kind": "value"
+        },
+        {
+          "name": "StrictMode",
           "kind": "value"
         }
       ],
@@ -182,6 +1055,18 @@
           "kind": "value"
         },
         {
+          "name": "buildLazyDtsOutput",
+          "kind": "value"
+        },
+        {
+          "name": "buildLazyGlobalDtsOutput",
+          "kind": "value"
+        },
+        {
+          "name": "findNameCollisions",
+          "kind": "value"
+        },
+        {
           "name": "DepGraph",
           "kind": "value"
         },
@@ -190,7 +1075,163 @@
           "kind": "value"
         },
         {
+          "name": "buildModuleGraph",
+          "kind": "value"
+        },
+        {
+          "name": "withBarrelExports",
+          "kind": "value"
+        },
+        {
+          "name": "consumersOf",
+          "kind": "value"
+        },
+        {
+          "name": "INIT_EDGE_KINDS",
+          "kind": "value"
+        },
+        {
+          "name": "tarjanScc",
+          "kind": "value"
+        },
+        {
+          "name": "topoOrder",
+          "kind": "value"
+        },
+        {
+          "name": "cyclicSccs",
+          "kind": "value"
+        },
+        {
+          "name": "shortestCycle",
+          "kind": "value"
+        },
+        {
+          "name": "cycleEdges",
+          "kind": "value"
+        },
+        {
+          "name": "condensation",
+          "kind": "value"
+        },
+        {
+          "name": "analyzeBarrel",
+          "kind": "value"
+        },
+        {
+          "name": "analyzeBarrelGraph",
+          "kind": "value"
+        },
+        {
+          "name": "buildRuntimeGraph",
+          "kind": "value"
+        },
+        {
+          "name": "contractBarrel",
+          "kind": "value"
+        },
+        {
+          "name": "selectSafeExports",
+          "kind": "value"
+        },
+        {
+          "name": "scanFile",
+          "kind": "value"
+        },
+        {
+          "name": "classifyReference",
+          "kind": "value"
+        },
+        {
+          "name": "collectCycleDiagnostics",
+          "kind": "value"
+        },
+        {
+          "name": "collectBarrelDiagnostics",
+          "kind": "value"
+        },
+        {
+          "name": "formatDiagnostics",
+          "kind": "value"
+        },
+        {
+          "name": "countBySeverity",
+          "kind": "value"
+        },
+        {
+          "name": "SEVERITY_BY_CODE",
+          "kind": "value"
+        },
+        {
+          "name": "BuildModuleGraphOptions",
+          "kind": "value"
+        },
+        {
+          "name": "SafeExportSelection",
+          "kind": "value"
+        },
+        {
+          "name": "ScanContext",
+          "kind": "value"
+        },
+        {
+          "name": "Edge",
+          "kind": "value"
+        },
+        {
+          "name": "EdgeKind",
+          "kind": "value"
+        },
+        {
+          "name": "EagerVia",
+          "kind": "value"
+        },
+        {
+          "name": "ModuleGraph",
+          "kind": "value"
+        },
+        {
+          "name": "Scc",
+          "kind": "value"
+        },
+        {
+          "name": "SccResult",
+          "kind": "value"
+        },
+        {
+          "name": "BarrelAnalysis",
+          "kind": "value"
+        },
+        {
+          "name": "BarrelSafety",
+          "kind": "value"
+        },
+        {
+          "name": "Diagnostic",
+          "kind": "value"
+        },
+        {
+          "name": "DiagnosticCode",
+          "kind": "value"
+        },
+        {
+          "name": "DiagnosticSeverity",
+          "kind": "value"
+        },
+        {
+          "name": "StrictMode",
+          "kind": "value"
+        },
+        {
           "name": "genExportMap",
+          "kind": "value"
+        },
+        {
+          "name": "watchSrc",
+          "kind": "value"
+        },
+        {
+          "name": "WatchOptions",
           "kind": "value"
         },
         {
@@ -229,6 +1270,10 @@
           "kind": "value"
         },
         {
+          "name": "buildLazyGlobalDtsOutput",
+          "kind": "value"
+        },
+        {
           "name": "buildGlobalDtsOutput",
           "kind": "value"
         },
@@ -253,6 +1298,10 @@
           "kind": "value"
         },
         {
+          "name": "findNameCollisions",
+          "kind": "value"
+        },
+        {
           "name": "buildDepGraph",
           "kind": "value"
         },
@@ -262,6 +1311,10 @@
         },
         {
           "name": "topoSort",
+          "kind": "value"
+        },
+        {
+          "name": "buildLazyDtsOutput",
           "kind": "value"
         },
         {
@@ -286,7 +1339,10 @@
         "src/core/export-map.ts",
         "src/core/import.ts"
       ],
-      "importsFrom": []
+      "importsFrom": [
+        "src/analysis/graph.ts",
+        "src/analysis/scc.ts"
+      ]
     },
     {
       "file": "src/utils/index.ts",

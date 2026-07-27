@@ -58,6 +58,10 @@ export function buildLazyGlobalDtsOutput(infos: FileInfo[], outFileName: string)
           ' *',
           ' * Value exports use lazy getters to prevent circular-dependency',
           ' * errors when source files import from this barrel (CJS).',
+          ' *',
+          ' * Getters are installed on module.exports, not exports: esbuild-based',
+          ' * loaders (tsx, bun) reassign module.exports for any file containing',
+          ' * export syntax, which would strand getters bound to exports.',
           ' */',
           '',
      ]
@@ -102,14 +106,14 @@ export function buildLazyGlobalDtsOutput(infos: FileInfo[], outFileName: string)
 
           // Lazy getters for exports
           for (const { name, importPath, key } of valueExports) {
-               lines.push(`Object.defineProperty(exports, '${name}', { get() { return require('${importPath}').${key} }, enumerable: true, configurable: true });`)
+               lines.push(`Object.defineProperty(module.exports, '${name}', { get() { return require('${importPath}').${key} }, enumerable: true, configurable: true });`)
           }
 
           // Register on global using defineProperties for lazy access
           lines.push('')
           lines.push('Object.defineProperties(global, {')
           for (const { name } of valueExports) {
-               lines.push(`  ${name}: { get() { return exports.${name} }, enumerable: true, configurable: true },`)
+               lines.push(`  ${name}: { get() { return module.exports.${name} }, enumerable: true, configurable: true },`)
           }
           lines.push('});')
           lines.push('')
@@ -477,6 +481,10 @@ export function buildLazyDtsOutput(infos: FileInfo[], outFileName: string): stri
           ' *',
           ' * Value exports use lazy getters to prevent circular-dependency',
           ' * errors when source files import from this barrel (CJS).',
+          ' *',
+          ' * Getters are installed on module.exports, not exports: esbuild-based',
+          ' * loaders (tsx, bun) reassign module.exports for any file containing',
+          ' * export syntax, which would strand getters bound to exports.',
           ' */',
           '',
      ]
@@ -523,10 +531,10 @@ export function buildLazyDtsOutput(infos: FileInfo[], outFileName: string): stri
      if (valueModules.length) {
           for (const { importPath, names, defaultAlias } of valueModules) {
                for (const name of names) {
-                    lines.push(`Object.defineProperty(exports, '${name}', { get() { return require('${importPath}').${name} }, enumerable: true, configurable: true });`)
+                    lines.push(`Object.defineProperty(module.exports, '${name}', { get() { return require('${importPath}').${name} }, enumerable: true, configurable: true });`)
                }
                if (defaultAlias) {
-                    lines.push(`Object.defineProperty(exports, '${defaultAlias}', { get() { return require('${importPath}').default }, enumerable: true, configurable: true });`)
+                    lines.push(`Object.defineProperty(module.exports, '${defaultAlias}', { get() { return require('${importPath}').default }, enumerable: true, configurable: true });`)
                }
           }
      }

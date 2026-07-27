@@ -58,7 +58,7 @@ export function genAppConfig(options: GenAppConfigOptions = {}): void {
 
           if (added.length || removed.length) {
                const existing = readFileSync(genImportPath, 'utf-8')
-               const wasLazy = existing.includes("Object.defineProperty(exports, '")
+               const wasLazy = /Object\.defineProperty\((?:module\.)?exports, '/.test(existing)
                const wasGlobals = existing.includes('declare global') || existing.includes('Object.assign(global')
                const content = wasGlobals
                     ? (wasLazy
