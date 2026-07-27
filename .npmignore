@@ -7,3 +7,5 @@ CLAUDE.md
 examples
 express-app
 .coderabbit.yaml
+*test
+*.test

@@ -20,7 +20,7 @@ export function buildRuntimeGraph(
     exportedFiles: string[],
     options: BarrelAnalysisOptions = {},
 ): ModuleGraph {
-    return options.lazy && options.ownerByName
+    return options.ownerByName
         ? contractBarrel(graph, barrelId, options.ownerByName, exportedFiles)
         : withBarrelExports(graph, barrelId, exportedFiles)
 }
@@ -45,7 +45,7 @@ export function analyzeBarrelGraph(
     const consumers = consumersOf(graph, barrelId)
 
     let scc: Scc | undefined
-    if (options.lazy && options.ownerByName) {
+    if (options.ownerByName) {
         scc = cyclicSccs(result).find((candidate) => {
             const members = new Set(candidate.members)
             return candidate.members.some((m) =>

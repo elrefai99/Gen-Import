@@ -34,3 +34,6 @@ jobs:
 
       - name: Run TypeScript build
         run: pnpm build
+
+      - name: Run tests
+        run: pnpm test:only
