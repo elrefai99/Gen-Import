@@ -21,9 +21,6 @@ export function genAppConfig(options: GenAppConfigOptions = {}): void {
      const pureReexports = new Set(options.pureReexports ?? [])
      const skipPatterns = [...DEFAULT_SKIP_PATTERNS, ...(options.skipPatterns ?? [])]
 
-     // Auto-update is a full regeneration (not append-only) so exports removed
-     // from source files are pruned instead of left behind as stale re-exports.
-     // TS projects only — for JS projects the barrel scan has no .ts sources.
      if (autoUpdate && isTs && existsSync(genImportPath)) {
           const knownExports = parseBarrelExports(genImportPath)
 
@@ -44,7 +41,6 @@ export function genAppConfig(options: GenAppConfigOptions = {}): void {
           const program = createTsProgram(orderedFiles, rootDir)
           const allInfos = analyzeFiles(orderedFiles, rootDir, srcDir, program)
 
-          // Mirror genImport: topo sort keeps init order cycle-safe
           const graph = buildDepGraph(orderedFiles, program)
           const sortedPaths = topoSort(orderedFiles, graph)
           const pathIndex = new Map(sortedPaths.map((p, i) => [p, i]))
@@ -61,7 +57,6 @@ export function genAppConfig(options: GenAppConfigOptions = {}): void {
           const removed = [...knownExports].filter((n) => n !== '*' && !currentNames.has(n))
 
           if (added.length || removed.length) {
-               // Preserve the existing barrel's format (lazy / globals) across regeneration
                const existing = readFileSync(genImportPath, 'utf-8')
                const wasLazy = existing.includes("Object.defineProperty(exports, '")
                const wasGlobals = existing.includes('declare global') || existing.includes('Object.assign(global')
@@ -144,9 +139,6 @@ export function genAppConfig(options: GenAppConfigOptions = {}): void {
           return lines.join('\n')
      }
 
-     // Main output:
-     //   TS projects → .ts source file (importable by ts-node / tsx / tsc)
-     //   JS projects → .js runtime file
      if (isTs) {
           writeFileSync(outFile, buildBarrel(`${configBase}.ts`), 'utf-8')
      } else {
@@ -154,14 +146,12 @@ export function genAppConfig(options: GenAppConfigOptions = {}): void {
      }
      console.log(`✓  ${relative(rootDir, outFile)}`)
 
-     // JS projects: write a .d.ts type companion so TypeScript IDEs get types
      if (writeTypeDecl) {
           const dtsFile = outFile.replace(/\.js$/, '.d.ts')
           writeFileSync(dtsFile, buildBarrel(`${configBase}.d.ts`), 'utf-8')
           console.log(`✓  ${relative(rootDir, dtsFile)}`)
      }
 
-     // TS projects with explicit generateJs: also write a .js runtime companion
      if (isTs && generateJs) {
           const jsFile = toJsPath(outFile)
           writeFileSync(jsFile, buildJsBarrel(), 'utf-8')

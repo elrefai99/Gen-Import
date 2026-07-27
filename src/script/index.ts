@@ -1,7 +1,9 @@
 import ts from 'typescript'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
-import { CycleReport, FileInfo } from '../@types'
+import { CycleReport, Edge, FileInfo, ModuleGraph } from '../@types'
 import { join, relative } from 'node:path'
+import { INIT_EDGE_KINDS, buildModuleGraph } from '../analysis/graph'
+import { cyclicSccs, shortestCycle, tarjanScc, topoOrder } from '../analysis/scc'
 
 export function walk(dir: string): string[] {
      return readdirSync(dir, { withFileTypes: true }).flatMap((e: import('node:fs').Dirent) => {
@@ -390,11 +392,6 @@ export function analyzeFiles(
      })
 }
 
-/**
- * Detect export names declared by more than one file.
- * Barrel builders dedupe first-wins, so every later occurrence is silently
- * dropped from the barrel — callers should surface these as warnings.
- */
 export function findNameCollisions(infos: FileInfo[]): Map<string, string[]> {
      const owners = new Map<string, string[]>()
      for (const { importPath, types, values, defaultAlias } of infos) {
@@ -414,131 +411,58 @@ export function findNameCollisions(infos: FileInfo[]): Map<string, string[]> {
 export type DepGraph = Map<string, Set<string>>
 
 export function buildDepGraph(files: string[], program: ts.Program): DepGraph {
+     const moduleGraph = buildModuleGraph(files, {
+          rootDir: program.getCurrentDirectory(),
+          program,
+     })
+
      const graph: DepGraph = new Map()
-     const fileSet = new Set(files)
-     const compilerOptions = program.getCompilerOptions()
-
      for (const file of files) {
-          const sf = program.getSourceFile(file)
-          const deps = new Set<string>()
-
-          const addDep = (specText: string): void => {
-               if (!specText.startsWith('.')) return // skip external packages
-               const resolved = ts.resolveModuleName(specText, file, compilerOptions, ts.sys)
-               const resolvedFile = resolved.resolvedModule?.resolvedFileName
-               if (resolvedFile && fileSet.has(resolvedFile)) {
-                    deps.add(resolvedFile)
-               }
-          }
-
-          if (sf) {
-               // Full AST walk — catches top-level import/export plus dynamic
-               // import() expressions and require() calls anywhere in the file.
-               const visit = (node: ts.Node): void => {
-                    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
-                         const moduleSpec = node.moduleSpecifier
-                         if (moduleSpec && ts.isStringLiteral(moduleSpec)) addDep(moduleSpec.text)
-                    } else if (ts.isCallExpression(node)) {
-                         const arg = node.arguments[0]
-                         const isDynamicImport = node.expression.kind === ts.SyntaxKind.ImportKeyword
-                         const isRequire = ts.isIdentifier(node.expression) && node.expression.text === 'require'
-                         if ((isDynamicImport || isRequire) && arg && ts.isStringLiteralLike(arg)) {
-                              addDep(arg.text)
-                         }
-                    }
-                    ts.forEachChild(node, visit)
-               }
-               visit(sf)
-          }
-
-          graph.set(file, deps)
+          const edges = moduleGraph.out.get(file) ?? []
+          graph.set(file, new Set(edges.filter((e) => INIT_EDGE_KINDS.has(e.kind)).map((e) => e.to)))
      }
-
      return graph
 }
 
+function toModuleGraph(graph: DepGraph): ModuleGraph {
+     const nodes = [...new Set([...graph.keys(), ...[...graph.values()].flatMap((s) => [...s])])].sort()
+     const out = new Map<string, Edge[]>()
+     for (const node of nodes) {
+          const deps = [...(graph.get(node) ?? [])].sort()
+          out.set(
+               node,
+               deps.map((to) => ({
+                    from: node,
+                    to,
+                    kind: 'value-static' as const,
+                    eager: false,
+                    bindings: [],
+                    line: 0,
+               })),
+          )
+     }
+     return { nodes, out, barrels: [] }
+}
+
 export function detectCycles(graph: DepGraph): CycleReport[] {
-     const cycles: CycleReport[] = []
-     const visited = new Set<string>()
-     const onStack = new Set<string>()
-     const stack: string[] = []
-     const reported = new Set<string>()
+     const moduleGraph = toModuleGraph(graph)
+     const result = tarjanScc(moduleGraph)
 
-     function dfs(node: string): void {
-          visited.add(node)
-          onStack.add(node)
-          stack.push(node)
-
-          for (const neighbor of graph.get(node) ?? []) {
-               if (!visited.has(neighbor)) {
-                    dfs(neighbor)
-               } else if (onStack.has(neighbor)) {
-                    const cycleStart = stack.indexOf(neighbor)
-                    const cyclePath = [...stack.slice(cycleStart), neighbor]
-                    const key = cyclePath.join('>')
-                    if (!reported.has(key)) {
-                         reported.add(key)
-                         cycles.push({ path: cyclePath })
-                    }
-               }
-          }
-
-          stack.pop()
-          onStack.delete(node)
-     }
-
-     for (const node of graph.keys()) {
-          if (!visited.has(node)) dfs(node)
-     }
-
-     return cycles
+     return cyclicSccs(result)
+          .map((scc) => ({ path: shortestCycle(moduleGraph, scc) }))
+          .filter((c) => c.path.length > 0)
 }
 
 export function topoSort(files: string[], graph: DepGraph): string[] {
      const fileSet = new Set(files)
-
-     const reversedGraph = new Map<string, Set<string>>()
-     const inDegree = new Map<string, number>()
-
+     const scoped: DepGraph = new Map()
      for (const file of files) {
-          inDegree.set(file, 0)
-          reversedGraph.set(file, new Set())
+          scoped.set(file, new Set([...(graph.get(file) ?? [])].filter((d) => fileSet.has(d))))
      }
 
-     for (const [file, deps] of graph) {
-          if (!fileSet.has(file)) continue
-          for (const dep of deps) {
-               if (!fileSet.has(dep)) continue
-               reversedGraph.get(dep)!.add(file)
-               inDegree.set(file, (inDegree.get(file) ?? 0) + 1)
-          }
-     }
-
-     // Files with 0 internal deps can be initialized first
-     const queue: string[] = []
-     for (const [file, deg] of inDegree) {
-          if (deg === 0) queue.push(file)
-     }
-
-     const sorted: string[] = []
-     while (queue.length) {
-          const node = queue.shift()!
-          sorted.push(node)
-          for (const dependent of reversedGraph.get(node) ?? []) {
-               const newDeg = (inDegree.get(dependent) ?? 0) - 1
-               inDegree.set(dependent, newDeg)
-               if (newDeg === 0) queue.push(dependent)
-          }
-     }
-
-     // Cycles prevent full sort — append remaining files (best-effort fallback)
-     if (sorted.length < files.length) {
-          const sortedSet = new Set(sorted)
-          const remaining = files.filter((f) => !sortedSet.has(f))
-          return [...sorted, ...remaining]
-     }
-
-     return sorted
+     const ordered = topoOrder(tarjanScc(toModuleGraph(scoped)))
+     const orderedSet = new Set(ordered)
+     return [...ordered.filter((f) => fileSet.has(f)), ...files.filter((f) => !orderedSet.has(f))]
 }
 
 export function buildLazyDtsOutput(infos: FileInfo[], outFileName: string): string {
@@ -557,7 +481,6 @@ export function buildLazyDtsOutput(infos: FileInfo[], outFileName: string): stri
           '',
      ]
 
-     // Phase 1: collect type exports, value export metadata
      const typeExportLines: string[] = []
      const valueModules: { importPath: string; names: string[]; defaultAlias: string | null }[] = []
 
@@ -583,11 +506,9 @@ export function buildLazyDtsOutput(infos: FileInfo[], outFileName: string): stri
           }
      }
 
-     // Phase 2: emit type exports
      lines.push(...typeExportLines)
      if (typeExportLines.length && valueModules.length) lines.push('')
 
-     // Phase 3: emit value type declarations (compile-time only)
      for (const { importPath, names, defaultAlias } of valueModules) {
           for (const name of names) {
                lines.push(`export declare const ${name}: typeof import('${importPath}').${name};`)
@@ -599,7 +520,6 @@ export function buildLazyDtsOutput(infos: FileInfo[], outFileName: string): stri
 
      if (valueModules.length) lines.push('')
 
-     // Phase 4: emit runtime lazy getters
      if (valueModules.length) {
           for (const { importPath, names, defaultAlias } of valueModules) {
                for (const name of names) {
@@ -679,7 +599,6 @@ export function buildJsOutput(
                const named = [...v, ...(hasDefault ? [`default as ${defaultAlias}`] : [])]
                if (named.length) lines.push(`export { ${named.join(', ')} } from '${importPath}';`)
           } else {
-               // CJS — use lazy getters to avoid circular-dependency undefined at init time
                for (const name of v) {
                     lines.push(`Object.defineProperty(exports, '${name}', { get: () => require('${importPath}').${name}, enumerable: true, configurable: true });`)
                }
@@ -711,7 +630,6 @@ export function parseBarrelExports(filePath: string): Set<string> {
                }
                continue
           }
-          // Lazy barrel format: export declare const <name>: ...
           const declareMatch = line.match(/^export\s+declare\s+const\s+(\w+)\s*:/)
           if (declareMatch) {
                names.add(declareMatch[1])

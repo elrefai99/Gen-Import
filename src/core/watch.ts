@@ -3,21 +3,11 @@ import { resolve } from 'node:path'
 import chalk from 'chalk'
 
 export interface WatchOptions {
-     /** Directory to watch (recursively) for source changes. */
      srcDir: string
-     /** Filename substrings to ignore — typically the generated barrels. */
      ignore?: string[]
-     /** Debounce window in ms to coalesce bursts of file events. Default 150. */
      debounceMs?: number
-     /** Callback invoked (debounced) whenever a relevant source file changes. */
      onChange: () => void
 }
-
-/**
- * Watches `srcDir` recursively and re-runs `onChange` whenever a `.ts`/`.js`
- * source file changes. Generated barrels (anything matching `ignore`) are
- * skipped so writing the output never re-triggers the watcher.
- */
 export function watchSrc(options: WatchOptions): () => void {
      const srcDir = resolve(options.srcDir)
      const ignore = options.ignore ?? []

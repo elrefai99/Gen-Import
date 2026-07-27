@@ -4,7 +4,7 @@ import { genExportMap } from './core/export-map'
 import { watchSrc } from './core/watch'
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import type { CliArgs, ExportMapFormat, ExportMapOptions, GenAppConfigOptions, GenImportOptions } from './@types'
+import type { CliArgs, ExportMapFormat, ExportMapOptions, GenAppConfigOptions, GenImportOptions, StrictMode } from './@types'
 
 function parseArgs(argv: string[]): CliArgs {
     const importOpts: GenImportOptions = {}
@@ -18,6 +18,11 @@ function parseArgs(argv: string[]): CliArgs {
     for (let i = 0; i < args.length; i++) {
         const arg = args[i]
         const next = args[i + 1]
+
+        if (arg.startsWith('--strict=')) {
+            importOpts.strict = arg.slice('--strict='.length) as StrictMode
+            continue
+        }
 
         switch (arg) {
             case '--root':
@@ -52,6 +57,12 @@ function parseArgs(argv: string[]): CliArgs {
             case '--globals':
             case '-g':
                 importOpts.globals = true
+                break
+            case '--strict':
+                importOpts.strict = 'all'
+                break
+            case '--safe-barrels':
+                importOpts.safeBarrels = true
                 break
             case '--strict-cycles':
                 importOpts.strictCycles = true
@@ -107,11 +118,9 @@ function parseArgs(argv: string[]): CliArgs {
 }
 
 function loadConfig(rootDir: string): GenImportOptions {
-    // .cjs is tried first so ESM projects can always provide a CJS config.
     for (const name of ['gen-import.config.cjs', 'gen-import.config.js']) {
         const configPath = join(rootDir, name)
         if (existsSync(configPath)) {
-            // eslint-disable-next-line @typescript-eslint/no-require-imports
             return require(resolve(configPath)) as GenImportOptions
         }
     }
@@ -131,7 +140,12 @@ Source barrel (gen-import.ts for TS projects, gen-import.js for JS projects):
   -o, --out <filename>        Output filename inside src (default: auto-detected)
   -m, --module-pattern <pat>  Module file pattern deferred to end (default: .module.ts)
   -g, --globals               Register all exports on Node.js global (no per-file imports needed)
-  --strict-cycles             Exit with code 1 if circular dependencies are detected (useful in CI)
+  --safe-barrels              Withhold exports that would put the barrel inside a dependency cycle
+                              (types are kept — they are erased before runtime; dropped value
+                              exports are reported with the direct-import line to use instead)
+  --strict[=<mode>]           Exit 1 on blocking findings. mode: cycles | barrels | collisions | all
+                              (default all). cycles=GI001, barrels=GI002/GI004, collisions=GI006
+  --strict-cycles             Deprecated alias for --strict=cycles
   --no-topo-sort              Skip topological sort and use alphabetical order (legacy behaviour)
   --lazy                      Force lazy re-exports to prevent circular-dep errors (default for CJS; CJS-only, ignored with a warning on ESM)
   --no-lazy                   Force static re-exports (default for ESM)
@@ -222,7 +236,6 @@ if (importOpts.watch ?? fileOpts.watch) {
     const srcDir = resolve(rootDir, importOpts.srcDir ?? fileOpts.srcDir ?? 'src')
     watchSrc({
         srcDir,
-        // Skip generated barrels so writing output never re-triggers the watch.
         ignore: ['gen-import', 'gen-app-config', 'gen-package'],
         onChange: runAll,
     })

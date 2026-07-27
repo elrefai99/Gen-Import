@@ -2,9 +2,33 @@ import { writeFileSync } from 'node:fs'
 import boxen from 'boxen'
 import chalk from 'chalk'
 import { join, relative, resolve } from 'node:path'
-import { GenImportOptions } from '../@types'
-import { walk, detectModuleType, detectProjectLanguage, toJsPath, analyzeFiles, createTsProgram, buildDepGraph, detectCycles, topoSort, readPreviousExports, buildDtsOutput, buildLazyDtsOutput, buildJsOutput, buildGlobalDtsOutput, buildLazyGlobalDtsOutput, buildGlobalJsOutput, buildGlobalDts, findNameCollisions } from '../script'
+import { Diagnostic, FileInfo, GenImportOptions, StrictMode } from '../@types'
+import { walk, detectModuleType, detectProjectLanguage, toJsPath, analyzeFiles, createTsProgram, readPreviousExports, buildDtsOutput, buildLazyDtsOutput, buildJsOutput, buildGlobalDtsOutput, buildLazyGlobalDtsOutput, buildGlobalJsOutput, buildGlobalDts, findNameCollisions } from '../script'
+import { buildModuleGraph, withBarrelExports } from '../analysis/graph'
+import { tarjanScc, topoOrder } from '../analysis/scc'
+import { analyzeBarrel, analyzeBarrelGraph, selectSafeExports } from '../analysis/barrel'
+import { collectBarrelDiagnostics, collectCycleDiagnostics, countBySeverity, formatDiagnostics, SEVERITY_BY_CODE } from '../analysis/diagnostics'
 import { DEFAULT_MODULE_FILE_PATTERNS, DEFAULT_SKIP_PATTERNS } from '..'
+
+const BARREL_SAFETY_LABEL = {
+     safe: () => chalk.green('safe'),
+     'type-safe': () => chalk.green('safe (type-only cycle)'),
+     ordered: () => chalk.yellow('ordered ⚠'),
+     unsafe: () => chalk.red('unsafe ✖'),
+} as const
+
+const BLOCKING_CODES: Record<Exclude<StrictMode, 'off'>, readonly string[]> = {
+     cycles: ['GI001'],
+     barrels: ['GI002', 'GI004'],
+     collisions: ['GI006'],
+     all: ['GI001', 'GI002', 'GI004', 'GI006'],
+}
+
+function blockingDiagnostics(diagnostics: Diagnostic[], strict: StrictMode): Diagnostic[] {
+     if (strict === 'off') return []
+     const codes = BLOCKING_CODES[strict]
+     return diagnostics.filter((d) => codes.includes(d.code))
+}
 
 export function genImport(options: GenImportOptions = {}): void {
      const rootDir = resolve(options.rootDir ?? process.cwd())
@@ -19,12 +43,10 @@ export function genImport(options: GenImportOptions = {}): void {
 
      const generateJs = options.generateJs ?? false
      const globals = options.globals ?? false
-     const strictCycles = options.strictCycles ?? false
+     const safeBarrels = options.safeBarrels ?? false
+     const strict: StrictMode = options.strict ?? (options.strictCycles ? 'cycles' : 'off')
      const noTopoSort = options.noTopoSort ?? false
      let lazy = options.lazy ?? (moduleType === 'cjs')
-     // Lazy barrels emit CJS require() getters — they cannot work in an ESM
-     // runtime ("type": "module"). Fall back to static re-exports (ESM live
-     // bindings already tolerate most cycles).
      if (lazy && moduleType === 'esm' && isTs) {
           console.warn(chalk.yellow('⚠  --lazy emits CJS require() getters, incompatible with "type": "module". Falling back to static re-exports.'))
           lazy = false
@@ -59,30 +81,41 @@ export function genImport(options: GenImportOptions = {}): void {
      const moduleFiles = allFiles.filter((f) => isModuleFile(f))
      const orderedFiles = [...regularFiles, ...moduleFiles]
 
-     // Create program once — reused by analyzeFiles and buildDepGraph
      const program = createTsProgram(orderedFiles, rootDir)
      const infos = analyzeFiles(orderedFiles, rootDir, srcDir, program)
 
-     const graph = buildDepGraph(orderedFiles, program)
-     const cycles = detectCycles(graph)
+     const barrelPaths = [outFile, toJsPath(outFile), genAppConfigPath, toJsPath(genAppConfigPath)]
+     const graph = buildModuleGraph(orderedFiles, { rootDir, program, barrelPaths })
 
-     if (cycles.length > 0) {
-          const cycleLines = cycles.map(({ path }) => {
-               const relPath = path.map((p) => chalk.yellow(relative(rootDir, p)))
-               return '  ' + relPath.join(chalk.red(' → '))
-          })
-          const header = chalk.red.bold(`⚠  ${cycles.length} circular ${cycles.length === 1 ? 'dependency' : 'dependencies'} detected:`)
-          console.warn('\n' + header + '\n' + cycleLines.join('\n') + '\n')
+     let analysisGraph = graph
+     for (const aggregator of [genAppConfigPath, toJsPath(genAppConfigPath)]) {
+          analysisGraph = withBarrelExports(analysisGraph, aggregator, [outFile])
+     }
 
-          if (strictCycles) {
-               console.error(chalk.red('Exiting due to --strict-cycles flag.'))
-               process.exit(1)
+     const ownerByName = new Map<string, string>()
+     for (const info of infos) {
+          for (const name of [...info.values, ...info.types, ...(info.defaultAlias ? [info.defaultAlias] : [])]) {
+               if (!ownerByName.has(name)) ownerByName.set(name, info.absolutePath)
           }
      }
 
+     const barrel = analyzeBarrelGraph(
+          analysisGraph,
+          outFile,
+          infos.map((i) => i.absolutePath),
+          { lazy, ownerByName },
+     )
+     const barrelAnalysis = barrel.analysis
+     const runtimeGraph = barrel.runtimeGraph
+
+     const sccResult = tarjanScc(runtimeGraph)
+     const diagnostics: Diagnostic[] = collectCycleDiagnostics(runtimeGraph, sccResult, rootDir, {
+          skipNodes: new Set(barrelPaths),
+     })
+
      let sortedInfos = infos
      if (!noTopoSort) {
-          const sortedPaths = topoSort(orderedFiles, graph)
+          const sortedPaths = topoOrder(sccResult)
           const pathIndex = new Map(sortedPaths.map((p, i) => [p, i]))
           sortedInfos = [...infos].sort((a, b) => {
                const ai = pathIndex.get(a.absolutePath) ?? Infinity
@@ -91,8 +124,6 @@ export function genImport(options: GenImportOptions = {}): void {
           })
      }
 
-     // Same-name exports from different files: builders keep the first and
-     // silently drop the rest — surface that instead of hiding it.
      const collisions = findNameCollisions(sortedInfos)
      if (collisions.size > 0) {
           const collisionLines = [...collisions].map(([name, paths]) => {
@@ -101,6 +132,57 @@ export function genImport(options: GenImportOptions = {}): void {
           })
           const header = chalk.yellow.bold(`⚠  ${collisions.size} export name collision${collisions.size === 1 ? '' : 's'} — only the first occurrence is re-exported:`)
           console.warn('\n' + header + '\n' + collisionLines.join('\n') + '\n')
+
+          diagnostics.push({
+               code: 'GI006',
+               severity: SEVERITY_BY_CODE.GI006,
+               message: `${collisions.size} export name collision${collisions.size === 1 ? '' : 's'} — only the first occurrence is re-exported`,
+               files: [...new Set([...collisions.values()].flat())],
+               advice: 'Rename one of the exports, or exclude the losing file with --skip.',
+          })
+     }
+
+     let emittedInfos: FileInfo[] = sortedInfos
+     let demoted: FileInfo[] = []
+     let dropped: FileInfo[] = []
+     let resolvedSafety = barrelAnalysis.safety
+
+     if (safeBarrels) {
+          const selection = selectSafeExports(analysisGraph, outFile, sortedInfos, {
+               lazy,
+               precomputed: barrelAnalysis,
+          })
+          emittedInfos = selection.infos
+          demoted = selection.demoted
+          dropped = selection.dropped
+
+          if (!selection.unchanged) {
+               resolvedSafety = analyzeBarrel(
+                    analysisGraph,
+                    outFile,
+                    emittedInfos.map((i) => i.absolutePath),
+                    { lazy, ownerByName },
+               ).safety
+          }
+     }
+
+     const eagerSources = new Set(barrelAnalysis.eagerEdges.map((e) => e.from))
+
+     const repaired = resolvedSafety !== barrelAnalysis.safety &&
+          (resolvedSafety === 'safe' || resolvedSafety === 'type-safe')
+
+     if (repaired) {
+          diagnostics.push({
+               code: 'GI007',
+               severity: SEVERITY_BY_CODE.GI007,
+               message:
+                    `${relative(rootDir, outFile)} would have been ${barrelAnalysis.safety}; ` +
+                    `${dropped.length + demoted.length} export source${dropped.length + demoted.length === 1 ? '' : 's'} withheld to keep it acyclic`,
+               files: barrelAnalysis.members.map((m) => relative(rootDir, m)),
+               cycle: barrelAnalysis.cycle.map((p) => relative(rootDir, p)),
+          })
+     } else if (!barrelAnalysis.lazy || barrelAnalysis.safety === 'type-safe') {
+          diagnostics.push(...collectBarrelDiagnostics(barrelAnalysis, rootDir, { safeBarrels }))
      }
 
      const prevExports = readPreviousExports(outFile)
@@ -109,18 +191,18 @@ export function genImport(options: GenImportOptions = {}): void {
           let content: string
           if (globals) {
                content = lazy
-                    ? buildLazyGlobalDtsOutput(sortedInfos, outFileName)
-                    : buildGlobalDtsOutput(sortedInfos, outFileName)
+                    ? buildLazyGlobalDtsOutput(emittedInfos, outFileName)
+                    : buildGlobalDtsOutput(emittedInfos, outFileName)
           } else {
                content = lazy
-                    ? buildLazyDtsOutput(sortedInfos, outFileName)
-                    : buildDtsOutput(sortedInfos, outFileName)
+                    ? buildLazyDtsOutput(emittedInfos, outFileName)
+                    : buildDtsOutput(emittedInfos, outFileName)
           }
           writeFileSync(outFile, content, 'utf-8')
      } else {
           const content = globals
-               ? buildGlobalJsOutput(sortedInfos, outFileName, moduleType)
-               : buildJsOutput(sortedInfos, outFileName, moduleType)
+               ? buildGlobalJsOutput(emittedInfos, outFileName, moduleType)
+               : buildJsOutput(emittedInfos, outFileName, moduleType)
           writeFileSync(outFile, content, 'utf-8')
      }
 
@@ -128,30 +210,34 @@ export function genImport(options: GenImportOptions = {}): void {
           const dtsFile = outFile.replace(/\.js$/, '.d.ts')
           const dtsName = outFileName.replace(/\.js$/, '.d.ts')
           const dtsContent = globals
-               ? buildGlobalDts(sortedInfos, dtsName)
-               : buildDtsOutput(sortedInfos, dtsName)
+               ? buildGlobalDts(emittedInfos, dtsName)
+               : buildDtsOutput(emittedInfos, dtsName)
           writeFileSync(dtsFile, dtsContent, 'utf-8')
      }
 
      if (isTs && generateJs) {
           const jsFile = toJsPath(outFile)
           const jsContent = globals
-               ? buildGlobalJsOutput(sortedInfos, outFileName, moduleType)
-               : buildJsOutput(sortedInfos, outFileName, moduleType)
+               ? buildGlobalJsOutput(emittedInfos, outFileName, moduleType)
+               : buildJsOutput(emittedInfos, outFileName, moduleType)
           writeFileSync(jsFile, jsContent, 'utf-8')
      }
 
-     const total = sortedInfos.reduce(
+     const total = emittedInfos.reduce(
           (n, i) => n + i.types.length + i.values.length + (i.defaultAlias ? 1 : 0),
           0,
      )
 
      const newExports = [...new Set(
-          sortedInfos.flatMap((i) => [...i.types, ...i.values, ...(i.defaultAlias ? [i.defaultAlias] : [])]),
+          emittedInfos.flatMap((i) => [...i.types, ...i.values, ...(i.defaultAlias ? [i.defaultAlias] : [])]),
      )].filter((name) => !prevExports.has(name))
 
+     const cycleCount = diagnostics.filter((d) => d.code === 'GI001' || d.code === 'GI003').length
+     const eagerCycleCount = diagnostics.filter((d) => d.code === 'GI001').length
+     const edgeCount = [...runtimeGraph.out.values()].reduce((n, e) => n + e.length, 0)
+
      const rows: [string, string][] = [
-          ['Source files', `${sortedInfos.length}`],
+          ['Source files', `${emittedInfos.length}`],
           ['Total exports', `${total}`],
           ['Language', isTs ? 'TypeScript' : 'JavaScript'],
           ['Output file', relative(rootDir, outFile)],
@@ -159,12 +245,65 @@ export function genImport(options: GenImportOptions = {}): void {
           ['Globals', globals ? chalk.green('on') : chalk.gray('off')],
           ['Lazy', lazy ? chalk.green('on') : chalk.gray('off')],
           ['Topo sort', noTopoSort ? chalk.gray('off') : chalk.green('on')],
-          ['Cycles', cycles.length === 0 ? chalk.green('none') : chalk.red(`${cycles.length} ⚠`)],
+          ['Import edges', `${edgeCount}`],
+          [
+               'Cycles',
+               cycleCount === 0
+                    ? chalk.green('none')
+                    : eagerCycleCount > 0
+                         ? chalk.red(`${cycleCount} (${eagerCycleCount} init-time ✖)`)
+                         : chalk.yellow(`${cycleCount} (all deferred)`),
+          ],
+          [
+               'Barrel',
+               resolvedSafety === barrelAnalysis.safety
+                    ? BARREL_SAFETY_LABEL[barrelAnalysis.safety]()
+                    : `${chalk.strikethrough(barrelAnalysis.safety)} ${chalk.gray('→')} ${BARREL_SAFETY_LABEL[resolvedSafety]()}`,
+          ],
           ['Collisions', collisions.size === 0 ? chalk.green('none') : chalk.yellow(`${collisions.size} ⚠`)],
      ]
 
+     if (safeBarrels) {
+          rows.push([
+               'Safe barrels',
+               demoted.length + dropped.length === 0
+                    ? chalk.green('on · nothing withheld')
+                    : chalk.yellow(`on · ${demoted.length} demoted, ${dropped.length} dropped`),
+          ])
+     }
+
      if (newExports.length) {
           rows.push(['New exports', chalk.yellow(`+${newExports.length}: ${newExports.join(', ')}`)])
+     }
+
+     const withheldReason = (info: FileInfo): string =>
+          eagerSources.has(info.absolutePath)
+               ? 'reads through the barrel while its own module body runs'
+               : 'shares the barrel cycle — withholding it is what breaks the loop'
+
+     for (const info of dropped) {
+          const names = [...info.values, ...(info.defaultAlias ? [info.defaultAlias] : [])]
+          diagnostics.push({
+               code: 'GI007',
+               severity: SEVERITY_BY_CODE.GI007,
+               message: `${info.importPath} withheld from the barrel — ${withheldReason(info)}`,
+               files: [relative(rootDir, info.absolutePath)],
+               advice: `import { ${names.join(', ')} } from '${info.importPath}'`,
+          })
+     }
+     for (const info of demoted) {
+          diagnostics.push({
+               code: 'GI007',
+               severity: SEVERITY_BY_CODE.GI007,
+               message: `${info.importPath}: types kept, values withheld — ${withheldReason(info)}`,
+               files: [relative(rootDir, info.absolutePath)],
+               advice: `import { ${info.values.join(', ')} } from '${info.importPath}'`,
+          })
+     }
+
+     const severity = countBySeverity(diagnostics)
+     if (diagnostics.length > 0) {
+          console.log('\n' + formatDiagnostics(diagnostics) + '\n')
      }
 
      const labelWidth = Math.max(...rows.map(([l]) => l.length))
@@ -177,7 +316,7 @@ export function genImport(options: GenImportOptions = {}): void {
                title: chalk.green.bold(' gen-import '),
                titleAlignment: 'center',
                padding: { top: 0, bottom: 0, left: 1, right: 1 },
-               borderColor: cycles.length > 0 ? 'yellow' : 'green',
+               borderColor: severity.error > 0 ? 'red' : severity.warn > 0 ? 'yellow' : 'green',
                borderStyle: 'round',
           }),
      )
@@ -185,7 +324,7 @@ export function genImport(options: GenImportOptions = {}): void {
      const outName = relative(rootDir, outFile)
      const graphLines: string[] = []
 
-     for (const info of sortedInfos) {
+     for (const info of emittedInfos) {
           const allExports: string[] = [
                ...info.types.map((n) => `${chalk.blue('[T]')} ${chalk.dim(n)}`),
                ...info.values.map((n) => `${chalk.green('[V]')} ${chalk.white(n)}`),
@@ -215,5 +354,17 @@ export function genImport(options: GenImportOptions = {}): void {
                     borderStyle: 'round',
                }),
           )
+     }
+
+     const blocking = blockingDiagnostics(diagnostics, strict)
+     if (blocking.length > 0) {
+          const codes = [...new Set(blocking.map((d) => d.code))].sort().join(', ')
+          console.error(
+               chalk.red.bold(
+                    `\n✖  ${blocking.length} blocking finding${blocking.length === 1 ? '' : 's'} ` +
+                    `(${codes}) under --strict=${strict} — exiting with code 1`,
+               ),
+          )
+          process.exit(1)
      }
 }
