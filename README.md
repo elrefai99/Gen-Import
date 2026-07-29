@@ -1,6 +1,4 @@
 <div align="center">
-  <img src="https://lh3.googleusercontent.com/d/1YpSkag4qd0TVzgaWSscSgsVneClHPOfl" width="200" alt="Gen-Import" />
-
   # Gen-Import
 
 <p>
