@@ -2,22 +2,31 @@
 import { genImport, genAppConfig } from './index'
 import { genExportMap } from './core/export-map'
 import { watchSrc } from './core/watch'
+import { startStudio } from './studio'
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import type { CliArgs, ExportMapFormat, ExportMapOptions, GenAppConfigOptions, GenImportOptions, StrictMode } from './@types'
+import type { CliArgs, ExportMapFormat, ExportMapOptions, GenAppConfigOptions, GenImportOptions, StrictMode, StudioOptions } from './@types'
 
 function parseArgs(argv: string[]): CliArgs {
     const importOpts: GenImportOptions = {}
     const appConfigOpts: GenAppConfigOptions = {}
     const exportMapOpts: ExportMapOptions = {}
+    const studioOpts: StudioOptions = {}
     let runImport = true
     let runAppConfig = false
     let runExportMap = false
+    let runStudio = false
     const args = argv.slice(2)
 
     for (let i = 0; i < args.length; i++) {
         const arg = args[i]
         const next = args[i + 1]
+
+        if (arg === 'studio') {
+            runStudio = true
+            runImport = false
+            continue
+        }
 
         if (arg.startsWith('--strict=')) {
             importOpts.strict = arg.slice('--strict='.length) as StrictMode
@@ -28,12 +37,14 @@ function parseArgs(argv: string[]): CliArgs {
             case '--root':
             case '-r':
                 importOpts.rootDir = next
+                studioOpts.rootDir = next
                 i++
                 break
             case '--src':
             case '-s':
                 importOpts.srcDir = next
                 appConfigOpts.srcDir = next
+                studioOpts.srcDir = next
                 i++
                 break
             case '--out':
@@ -111,10 +122,26 @@ function parseArgs(argv: string[]): CliArgs {
             case '--no-imports':
                 exportMapOpts.includeImports = false
                 break
+            case '--port': {
+                const port = Number(next)
+                if (!Number.isInteger(port) || port < 0 || port > 65535) {
+                    throw new Error(`Invalid port: ${next}`)
+                }
+                studioOpts.port = port
+                i++
+                break
+            }
+            case '--host':
+                studioOpts.host = next
+                i++
+                break
+            case '--no-open':
+                studioOpts.open = false
+                break
         }
     }
 
-    return { importOpts, appConfigOpts, exportMapOpts, runImport, runAppConfig, runExportMap }
+    return { importOpts, appConfigOpts, exportMapOpts, studioOpts, runImport, runAppConfig, runExportMap, runStudio }
 }
 
 function loadConfig(rootDir: string): GenImportOptions {
@@ -133,6 +160,13 @@ gen-import — generate barrel files for your Node/TypeScript project
 
 Usage:
   npx gen-import [options]
+  npx gen-import studio [options]
+
+Studio (interactive import/export explorer):
+  studio                      Start Studio, watch the project, and open the browser
+  --port <port>               Preferred port (default: 3000; finds a free port if busy)
+  --host <host>               Bind host (default: 127.0.0.1)
+  --no-open                   Do not open the default browser
 
 Source barrel (gen-import.ts for TS projects, gen-import.js for JS projects):
   -r, --root <dir>            Project root (default: cwd)
@@ -188,7 +222,7 @@ Export map (visualization):
 `)
 }
 
-const { importOpts, appConfigOpts, exportMapOpts, runImport, runAppConfig, runExportMap } =
+const { importOpts, appConfigOpts, exportMapOpts, studioOpts, runImport, runAppConfig, runExportMap, runStudio } =
     parseArgs(process.argv)
 const rootDir = resolve(importOpts.rootDir ?? process.cwd())
 const fileOpts = loadConfig(rootDir)
@@ -230,9 +264,16 @@ function runAll(): void {
     }
 }
 
-runAll()
+if (runStudio) {
+    void startStudio({ ...studioOpts, rootDir }).catch((error: unknown) => {
+        console.error(`Failed to start Gen Import Studio: ${error instanceof Error ? error.message : String(error)}`)
+        process.exitCode = 1
+    })
+} else {
+    runAll()
+}
 
-if (importOpts.watch ?? fileOpts.watch) {
+if (!runStudio && (importOpts.watch ?? fileOpts.watch)) {
     const srcDir = resolve(rootDir, importOpts.srcDir ?? fileOpts.srcDir ?? 'src')
     watchSrc({
         srcDir,

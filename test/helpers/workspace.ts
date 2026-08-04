@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os'
 
 const REPO_ROOT = resolve(__dirname, '..', '..')
 export const CLI = join(REPO_ROOT, 'dist', 'cli.js')
-const TSC = join(REPO_ROOT, 'node_modules', '.bin', 'tsc')
-const TSX = join(REPO_ROOT, 'node_modules', '.bin', 'tsx')
+const TSC = require.resolve('typescript/bin/tsc')
+const TSX = require.resolve('tsx/cli')
 
 export interface WorkspaceOptions {
     /** Source files, keyed by path relative to src/. */
@@ -104,7 +104,7 @@ export function createWorkspace(options: WorkspaceOptions): Workspace {
         srcDir,
         gen: (args = []) => run(process.execPath, [CLI, ...args], dir),
         runViaTsc(entry: string): RunResult {
-            const build = run(TSC, ['-p', 'tsconfig.json'], dir)
+            const build = run(process.execPath, [TSC, '-p', 'tsconfig.json'], dir)
             // Type errors are expected in several fixtures (a cycle makes TS
             // complain too). Emit still happens, so only a missing output is fatal.
             const outEntry = join(dir, 'out', entry.replace(/\.ts$/, '.js'))
@@ -115,7 +115,7 @@ export function createWorkspace(options: WorkspaceOptions): Workspace {
             return { ok: res.status === 0, stdout: res.stdout, stderr: res.stderr, output: res.stdout + res.stderr }
         },
         runViaTsx(entry: string): RunResult {
-            const res = run(TSX, [join('src', entry)], dir)
+            const res = run(process.execPath, [TSX, join('src', entry)], dir)
             return { ok: res.status === 0, stdout: res.stdout, stderr: res.stderr, output: res.stdout + res.stderr }
         },
         read: (relPath: string) => readFileSync(join(dir, relPath), 'utf-8'),

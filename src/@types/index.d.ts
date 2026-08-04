@@ -138,9 +138,11 @@ export interface CliArgs {
      importOpts: GenImportOptions
      appConfigOpts: GenAppConfigOptions
      exportMapOpts: ExportMapOptions
+     studioOpts: StudioOptions
      runImport: boolean
      runAppConfig: boolean
      runExportMap: boolean
+     runStudio: boolean
 }
 
 export type ExportKind = 'type' | 'value' | 'default'
@@ -175,4 +177,120 @@ export interface ExportMapResult {
      totalFiles: number
      totalExports: number
      totalImportEdges: number
+}
+
+export interface StudioOptions {
+     rootDir?: string
+     srcDir?: string
+     port?: number
+     host?: string
+     open?: boolean
+}
+
+export type StudioExportKind =
+     | 'function'
+     | 'class'
+     | 'interface'
+     | 'enum'
+     | 'type'
+     | 'variable'
+     | 'constant'
+     | 'default'
+     | 'unknown'
+
+export type StudioImportKind =
+     | 'import'
+     | 'type-import'
+     | 're-export'
+     | 'dynamic-import'
+     | 'require'
+     | 'side-effect'
+
+export interface StudioUsage {
+     id: string
+     file: string
+     line: number
+     importedAs: string
+     alias?: string
+     references: number
+     kind: StudioImportKind
+}
+
+export interface StudioExport {
+     id: string
+     name: string
+     displayName: string
+     kind: StudioExportKind
+     file: string
+     line: number
+     isDefault: boolean
+     isNamed: boolean
+     isReactComponent: boolean
+     unused: boolean
+     originFile?: string
+     reExportedFrom?: string
+     usages: StudioUsage[]
+}
+
+export interface StudioImport {
+     id: string
+     source: string
+     target: string
+     specifier: string
+     line: number
+     kind: StudioImportKind
+     bindings: string[]
+}
+
+export interface StudioFile {
+     id: string
+     path: string
+     name: string
+     folder: string
+     extension: string
+     loc: number
+     functions: number
+     classes: number
+     exports: string[]
+     imports: string[]
+     dependencies: string[]
+     dependents: string[]
+}
+
+export interface StudioFolder {
+     name: string
+     path: string
+     files: string[]
+     children: StudioFolder[]
+}
+
+export interface StudioCycle {
+     id: string
+     files: string[]
+}
+
+export interface StudioStats {
+     totalFiles: number
+     totalExports: number
+     totalImports: number
+     unusedExports: number
+     circularDependencies: number
+     largestFile?: { file: string; loc: number }
+     mostImportedFile?: { file: string; imports: number }
+     mostImportedExport?: { exportId: string; name: string; imports: number }
+     averageImportsPerFile: number
+     averageExportsPerFile: number
+}
+
+export interface StudioSnapshot {
+     version: number
+     generatedAt: string
+     rootDir: string
+     scanDurationMs: number
+     files: StudioFile[]
+     exports: StudioExport[]
+     imports: StudioImport[]
+     folders: StudioFolder[]
+     cycles: StudioCycle[]
+     stats: StudioStats
 }
