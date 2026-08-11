@@ -2,7 +2,6 @@
 import { genImport, genAppConfig } from './index'
 import { genExportMap } from './core/export-map'
 import { watchSrc } from './core/watch'
-import { startStudio } from './studio'
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { CliArgs, ExportMapFormat, ExportMapOptions, GenAppConfigOptions, GenImportOptions, StrictMode, StudioOptions } from './@types'
@@ -262,15 +261,6 @@ function runAll(): void {
                 : undefined,
         })
     }
-}
-
-if (runStudio) {
-    void startStudio({ ...studioOpts, rootDir }).catch((error: unknown) => {
-        console.error(`Failed to start Gen Import Studio: ${error instanceof Error ? error.message : String(error)}`)
-        process.exitCode = 1
-    })
-} else {
-    runAll()
 }
 
 if (!runStudio && (importOpts.watch ?? fileOpts.watch)) {
