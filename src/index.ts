@@ -49,16 +49,3 @@ export type {
 export { genExportMap } from './core/export-map'
 export { watchSrc } from './core/watch'
 export type { WatchOptions } from './core/watch'
-export type {
-     StudioOptions,
-     StudioExportKind,
-     StudioImportKind,
-     StudioUsage,
-     StudioExport,
-     StudioImport,
-     StudioFile,
-     StudioFolder,
-     StudioCycle,
-     StudioStats,
-     StudioSnapshot,
-} from './@types'

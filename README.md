@@ -23,7 +23,6 @@
 - [Console output](#console-output)
 - [Installation](#installation)
 - [Quick start](#quick-start)
-- [Studio](#studio)
 - [Generated files](#generated-files)
 - [CLI reference](#cli-reference)
 - [Config file](#config-file)
@@ -50,7 +49,6 @@
 - Detects **export name collisions** across source files
 - Diffs against the previous barrel to report **newly added exports**
 - Prints **diagnostics** (with fix suggestions), a **summary box**, and an **import/export graph**, using `boxen` + `chalk`
-- Opens an optional **interactive Studio** for exploring files, exports, usages, barrels, unused symbols, and cycles
 
 ---
 
@@ -146,8 +144,6 @@ npx gen-import --safe-barrels
 # Watch src/ and regenerate on every change
 npx gen-import --watch
 
-# Open the interactive dependency Studio
-npx gen-import studio
 ```
 
 Add to `package.json` scripts:
@@ -174,29 +170,6 @@ import { UserService, UserDto, authMiddleware } from './gen-import'
 
 ---
 
-## Studio
-
-Studio is a local, read-only dependency explorer for TypeScript and JavaScript projects. It scans the complete project (excluding dependencies, build output, and generated barrels), follows tsconfig path aliases, and updates automatically while source files change.
-
-```bash
-npx gen-import studio
-npx gen-import studio --port 5000
-npx gen-import studio --host 0.0.0.0
-npx gen-import studio --no-open
-```
-
-If the preferred port is occupied, Studio automatically tries the next available port. The browser interface includes:
-
-- File and symbol-level import/export graphs with zoom, pan, minimap, fit view, folder aggregation, and dependency-path highlighting
-- Export Explorer with source locations, declaration kinds, default/named status, aliases, and per-file reference counts
-- Reverse dependencies, re-export/barrel chains, dynamic imports, unused exports, and circular dependency groups
-- Global file/symbol search plus filters for functions, classes, interfaces, enums, defaults, React components, controllers, services, and backend files
-- Project statistics, file metrics, dark/light themes, virtualized export lists, and live indexing over server-sent events
-
-Studio uses the TypeScript compiler's previous `Program` as its in-memory analysis cache. Graph rendering is capped until a file is selected, keeping navigation responsive for large projects while preserving the complete searchable index.
-
----
-
 ## Generated files
 
 | File | Command | Description |
@@ -216,13 +189,6 @@ Studio uses the TypeScript compiler's previous `Program` as its in-memory analys
 ```
 Usage:
   npx gen-import [options]
-  npx gen-import studio [options]
-
-Studio (interactive import/export explorer):
-  studio                      Start Studio, watch the project, and open the browser
-  --port <port>               Preferred port (default: 3000; finds a free port if busy)
-  --host <host>               Bind host (default: 127.0.0.1)
-  --no-open                   Do not open the default browser
 
 Source barrel (gen-import.ts for TS projects, gen-import.js for JS projects):
   -r, --root <dir>            Project root (default: cwd)
@@ -468,7 +434,7 @@ Console output:
 ## Programmatic API
 
 ```ts
-import { genImport, genAppConfig, genPackage, genExportMap, watchSrc, analyzeStudioProject, startStudio } from 'gen-import'
+import { genImport, genAppConfig, genPackage, genExportMap, watchSrc } from 'gen-import'
 ```
 
 ### genImport
@@ -578,23 +544,6 @@ const stop = watchSrc({
 })
 
 // stop() to close the watcher
-```
-
-### Studio API
-
-```ts
-import { analyzeStudioProject, startStudio } from 'gen-import'
-
-const snapshot = analyzeStudioProject(process.cwd())
-
-const studio = await startStudio({
-  rootDir: process.cwd(),
-  port: 3000,
-  host: '127.0.0.1',
-  open: false,
-})
-
-await studio.close()
 ```
 
 ### Graph, SCC, and diagnostics utilities
