@@ -57,11 +57,9 @@ export function genImport(options: GenImportOptions = {}): void {
      const pureReexports = new Set(options.pureReexports ?? [])
      const skipPatterns = [...DEFAULT_SKIP_PATTERNS, ...(options.skipPatterns ?? [])]
 
-     const genPackageFileName = isTs ? 'gen-package.ts' : 'gen-package.js'
-     const genPackagePath = join(srcDir, genPackageFileName)
-     const genAppConfigFileName = isTs ? 'gen-app-config.ts' : 'gen-app-config.js'
+     const genAppConfigFileName = isTs ? 'gen.config.ts' : 'gen.config.js'
      const genAppConfigPath = join(srcDir, genAppConfigFileName)
-     const extraSkip = new Set([outFile, toJsPath(outFile), genPackagePath, genAppConfigPath])
+     const extraSkip = new Set([outFile, toJsPath(outFile), genAppConfigPath])
 
      function shouldSkip(file: string): boolean {
           if (file.endsWith('.d.ts')) return true
@@ -69,7 +67,32 @@ export function genImport(options: GenImportOptions = {}): void {
           if (extraSkip.has(file)) return true
           const rel = relative(rootDir, file).replace(/\\/g, '/')
           if (pureReexports.has(rel)) return true
-          return skipPatterns.some((p) => rel.includes(p))
+          return skipPatterns.some(
+               (pattern) => {
+                    const normalizedPattern =
+                         pattern
+                              .replace(
+                                   /\\/g,
+                                   '/',
+                              )
+                              .replace(
+                                   /^\.\//,
+                                   '',
+                              )
+
+                    return (
+                         rel === normalizedPattern ||
+                         rel.startsWith(
+                              normalizedPattern.endsWith('/')
+                                   ? normalizedPattern
+                                   : `${normalizedPattern}/`,
+                         ) ||
+                         rel.includes(
+                              normalizedPattern,
+                         )
+                    )
+               },
+          )
      }
 
      function isModuleFile(file: string): boolean {
@@ -130,7 +153,13 @@ export function genImport(options: GenImportOptions = {}): void {
                const [winner, ...dropped] = paths
                return `  ${chalk.yellow.bold(name)}: kept from ${chalk.cyan(winner)}, dropped from ${dropped.map((p) => chalk.red(p)).join(', ')}`
           })
-          const header = chalk.yellow.bold(`⚠  ${collisions.size} export name collision${collisions.size === 1 ? '' : 's'} — only the first occurrence is re-exported:`)
+          const header =
+               chalk.yellow.bold(
+                    `⚠  ${collisions.size} export name collision${collisions.size === 1
+                         ? ''
+                         : 's'
+                    } — only the first occurrence is re-exported:`,
+               )
           console.warn('\n' + header + '\n' + collisionLines.join('\n') + '\n')
 
           diagnostics.push({
