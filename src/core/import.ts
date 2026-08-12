@@ -57,11 +57,9 @@ export function genImport(options: GenImportOptions = {}): void {
      const pureReexports = new Set(options.pureReexports ?? [])
      const skipPatterns = [...DEFAULT_SKIP_PATTERNS, ...(options.skipPatterns ?? [])]
 
-     const genPackageFileName = isTs ? 'gen-package.ts' : 'gen-package.js'
-     const genPackagePath = join(srcDir, genPackageFileName)
-     const genAppConfigFileName = isTs ? 'gen-app-config.ts' : 'gen-app-config.js'
+     const genAppConfigFileName = isTs ? 'gen.config.ts' : 'gen.config.js'
      const genAppConfigPath = join(srcDir, genAppConfigFileName)
-     const extraSkip = new Set([outFile, toJsPath(outFile), genPackagePath, genAppConfigPath])
+     const extraSkip = new Set([outFile, toJsPath(outFile), genAppConfigPath])
 
      function shouldSkip(file: string): boolean {
           if (file.endsWith('.d.ts')) return true

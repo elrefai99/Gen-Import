@@ -175,7 +175,7 @@ describe('project shapes', () => {
     test('--app-config writes an aggregator that only reads the barrel', () => {
         withWorkspace(CLEAN, (ws) => {
             assert.equal(ws.gen(['--app-config']).status, 0)
-            assert.match(ws.read('src/gen-app-config.ts'), /export \* from '\.\/gen-import'/)
+            assert.match(ws.read('src/gen.config.ts'), /export \* from '\.\/gen-import'/)
         })
     })
 
@@ -184,7 +184,7 @@ describe('project shapes', () => {
             ws.gen(['--app-config'])
             ws.gen(['--app-config'])
             const barrel = ws.read('src/gen-import.ts')
-            assert.doesNotMatch(barrel, /gen-app-config/)
+            assert.doesNotMatch(barrel, /gen.config/)
             assert.doesNotMatch(barrel, /from '\.\/gen-import'/)
         })
     })

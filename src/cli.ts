@@ -157,9 +157,9 @@ Shared:
   --no-js                     Skip generating .js companion files
   -h, --help                  Show this help
 
-App-server config (gen-app-config.d.ts + gen-app-config.js):
+App-server config (gen.config.d.ts + gen.config.js):
   --app-config                Generate a server config that reads only from barrel files
-  --app-config-out <filename> Config output filename (default: gen-app-config.d.ts)
+  --app-config-out <filename> Config output filename (default: gen.config.d.ts)
   --no-auto-update            Skip auto-appending new source exports to gen-import.d.ts
 
 Config file:
@@ -176,8 +176,8 @@ Output files:
   gen-import.ts        TypeScript source barrel (TS projects — importable by tsx/ts-node)
   gen-import.js        JavaScript runtime barrel (JS projects, or TS with --no-js disabled)
   gen-import.d.ts      Type companion written alongside gen-import.js (JS projects only)
-  gen-app-config.d.ts  Server config — re-exports the source barrel, no per-file imports
-  gen-app-config.js    JavaScript companion for the server config
+  gen.config.d.ts  Server config — re-exports the source barrel, no per-file imports
+  gen.config.js    JavaScript companion for the server config
   (with --globals: gen-import.ts/.js also registers all exports on Node.js global)
 
 Export map (visualization):
@@ -236,7 +236,7 @@ if (importOpts.watch ?? fileOpts.watch) {
     const srcDir = resolve(rootDir, importOpts.srcDir ?? fileOpts.srcDir ?? 'src')
     watchSrc({
         srcDir,
-        ignore: ['gen-import', 'gen-app-config', 'gen-package'],
+        ignore: ['gen-import', 'gen.config'],
         onChange: runAll,
     })
 }

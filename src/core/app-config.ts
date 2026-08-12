@@ -8,7 +8,7 @@ export function genAppConfig(options: GenAppConfigOptions = {}): void {
      const rootDir = resolve(options.rootDir ?? process.cwd())
      const srcDir = resolve(rootDir, options.srcDir ?? 'src')
      const isTs = detectProjectLanguage(rootDir, srcDir) === 'ts'
-     const outFileName = options.outFileName ?? (isTs ? 'gen-app-config.ts' : 'gen-app-config.js')
+     const outFileName = options.outFileName ?? (isTs ? 'gen.config.ts' : 'gen.config.js')
      const outFile = join(srcDir, outFileName)
      const genImportFileName = options.genImportFile ?? (isTs ? 'gen-import.ts' : 'gen-import.js')
      const genImportPath = join(srcDir, genImportFileName)
