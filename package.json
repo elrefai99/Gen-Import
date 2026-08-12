@@ -12,7 +12,7 @@
   ],
   "scripts": {
     "build": "tsc",
-    "prepublishOnly": "npm run build",
+    "prepublishOnly": "pnpm build",
     "test": "npm run build && tsx --test \"test/**/*.test.ts\"",
     "test:only": "tsx --test \"test/**/*.test.ts\""
   },
