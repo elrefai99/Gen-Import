@@ -1,11 +1,12 @@
-<div align="center">
-  # Gen-Import
+# Gen-Import
 
+---
+
+<div align="center">
 <p>
   Automatically generate TypeScript/JavaScript barrel files using the TypeScript compiler API.<br/>
   Circular-dependency & barrel-safety analysis · lazy re-exports · topological sort · watch mode · export maps.
 </p>
-
 <p>
   <a href="https://www.npmjs.com/package/gen-import"><img src="https://img.shields.io/npm/v/gen-import" alt="npm version" /></a>
   <a href="https://www.npmjs.com/package/gen-import"><img src="https://img.shields.io/npm/dm/gen-import" alt="npm downloads" /></a>
