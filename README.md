@@ -1,8 +1,7 @@
-# Gen-Import
-
----
-
 <div align="center">
+
+<h1>Gen-Import</h1>
+
 <p>
   Automatically generate TypeScript/JavaScript barrel files using the TypeScript compiler API.<br/>
   Circular-dependency & barrel-safety analysis · lazy re-exports · topological sort · watch mode · export maps.
