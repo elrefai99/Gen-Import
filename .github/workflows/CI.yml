@@ -60,6 +60,6 @@ jobs:
       - name: Run TypeScript build
         run: pnpm build
 
-  ec2:
+  npm:
     needs: build
     uses: ./.github/workflows/CD.yml
