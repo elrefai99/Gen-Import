@@ -20,15 +20,17 @@ jobs:
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
+        with:
+          version: 10
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          registry-url: https://registry.npmjs.org
+          node-version: "22"
+          cache: "pnpm"
 
       - name: Install dependencies & devDependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Run tests
         run: pnpm test:only
@@ -43,15 +45,17 @@ jobs:
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
+        with:
+          version: 10
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          registry-url: https://registry.npmjs.org
+          node-version: "22"
+          cache: "pnpm"
 
       - name: Install dependencies & devDependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Run TypeScript build
         run: pnpm build
