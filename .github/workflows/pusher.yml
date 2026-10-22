@@ -86,7 +86,24 @@ jobs:
       - name: Build package
         run: pnpm build
 
+      - name: Check whether this version is already published
+        id: npm-version
+        shell: bash
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          if npm view "gen-import@${VERSION}" version >/dev/null 2>npm-view-error.txt; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "gen-import@${VERSION} is already published; skipping."
+          elif grep -q 'E404' npm-view-error.txt; then
+            echo "published=false" >> "$GITHUB_OUTPUT"
+            echo "gen-import@${VERSION} is not published yet."
+          else
+            cat npm-view-error.txt >&2
+            exit 1
+          fi
+
       - name: Publish to npm
+        if: steps.npm-version.outputs.published == 'false'
         run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
